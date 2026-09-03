@@ -1,0 +1,191 @@
+# [<img src="https://s3.vpndetection.io/vpndetection-public/brand/mark.svg" alt="VPNDetection" width="24"/>](https://vpndetection.io/) VPNDetection Perl Client Library
+
+[![CPAN](https://img.shields.io/cpan/v/VPNDetection.svg)](https://metacpan.org/dist/VPNDetection)
+[![license](https://img.shields.io/cpan/l/VPNDetection.svg)](LICENSE)
+
+The official Perl client library for the [VPNDetection](https://vpndetection.io) API.
+
+The library helps you query VPNDetection's APIs for anonymity detection including VPNs, residential proxies, Tor nodes, hosting servers, CDNs, relays and more.
+
+## Getting Started
+
+```bash
+cpanm VPNDetection
+```
+
+Requires Perl 5.16 or newer. [Mojolicious](https://metacpan.org/dist/Mojolicious) is the only runtime dependency, plus `IO::Socket::SSL` for TLS.
+
+## Usage
+
+**No API key needed to start.** The free tier answers `ip` and `is_vpn`, and allows 1000 requests per day per source address.
+
+```perl
+use VPNDetection;
+
+my $client = VPNDetection->new;
+
+my $result = $client->lookup('45.83.91.1');
+print $result->is_vpn;   # 1
+```
+
+### With an API key
+
+An API key raises your quota, and raises your features on a paid plan. Create one in the [console](https://app.vpndetection.io), then pass it in:
+
+```perl
+my $client = VPNDetection->new(api_key => $ENV{VPNDETECTION_API_KEY});
+
+my $result = $client->lookup('45.83.91.1');
+print $result->is_vpn;               # 1
+print $result->vpn->{provider};      # mullvad
+print $result->is_hosting;           # 1
+print $result->hosting->{provider};
+```
+
+### Absent is not the same as false
+
+A field your plan does not include is **absent**, which never means "we checked and found nothing". Perl makes this unusually easy to get wrong, because `undef`, `0`, `''` and a missing hash key are all false:
+
+```perl
+if ($result->is_hosting) { ... }          # WRONG: absent and false look identical here
+```
+
+Two readers say what you actually mean. `//` reads an absent field as false, and `has` asks whether your plan carries the field at all:
+
+```perl
+if ($result->is_hosting // 0) { ... }     # right: absent counts as false
+if ($result->has('is_hosting')) { ... }   # right: is this field in my plan?
+
+$result->is_hosting;        # 1, 0, or undef when your plan omits it
+$result->fields;            # the field names this answer carried
+$result->raw;               # the response exactly as it came off the wire
+```
+
+A detail object that is present but empty (`{}`) means the flag above it is false. A populated one always carries every one of its keys.
+
+### Batch lookup
+
+You can do batch lookups with a list, which parallelizes requests for you efficiently:
+
+```perl
+my $answers = $client->lookup_batch(['45.83.91.1', '8.8.8.8', '1.1.1.1']);
+
+for my $ip (keys %$answers) {
+    my $answer = $answers->{$ip};
+    if ($answer->isa('VPNDetection::Error')) {
+        warn "$ip: $answer";
+        next;
+    }
+    print "$ip: ", $answer->is_vpn, "\n";
+}
+```
+
+Results are keyed by address, so duplicates in your list collapse into a single request and one address failing never loses the rest. Perl hashes carry no insertion order, so iterate your own list when order matters.
+
+Concurrency and other variables are configurable per-call:
+
+```perl
+my $answers = $client->lookup_batch(\@many_ips, concurrency => 32, retries => 4);
+```
+
+### Caching
+
+Answers are cached by default, so repeat lookups of the same address are free:
+
+```perl
+my $client = VPNDetection->new;
+
+my $result = $client->lookup('45.83.91.1');
+print $result->is_vpn;    # 1, API request
+
+my $again = $client->lookup('45.83.91.1');
+print $again->is_vpn;     # 1, no API request, result was cached
+```
+
+You can change the default cache variables (max size, TTL in seconds) on initialization, or even disable it:
+
+```perl
+my $client = VPNDetection->new(cache_size => 50_000, cache_ttl => 6 * 60 * 60);
+my $uncached = VPNDetection->new(cache_size => 0);
+```
+
+The cache belongs to the client, never to the process. Two clients holding different keys are on different plans and entitled to different fields, so a shared cache would serve one of them the other's shape.
+
+### Private and reserved addresses
+
+Private, loopback, link-local, documentation and multicast addresses (and their IPv6 equivalents, including the 6to4 and Teredo ranges) can never be VPN or proxy infrastructure. The library answers them locally, so they cost no request and no quota:
+
+```perl
+my $result = $client->lookup('192.168.1.1');
+$result->is_bogon;    # 1, this answer was computed rather than served
+$result->is_vpn;      # 0
+```
+
+The check is available on the client, which is handy when your inputs are addresses anyway:
+
+```perl
+$client->is_bogon('10.0.0.1');    # 1
+$client->is_bogon('8.8.8.8');     # 0
+```
+
+It is also importable on its own, if you want it without a client:
+
+```perl
+use VPNDetection 'is_bogon';
+
+is_bogon('10.0.0.1');    # 1
+```
+
+### Errors
+
+Failures die with a `VPNDetection::Error` carrying a `kind` and a `retryable` flag. It stringifies to its message, so it reads like an ordinary string exception where you do not care which it is:
+
+```perl
+my $result = eval { $client->lookup('1.1.1.1') };
+if (my $err = $@) {
+    die $err unless ref $err && $err->isa('VPNDetection::Error');
+    warn $err->kind, ' ', $err->retryable;
+}
+```
+
+`kind` is one of `bad_request`, `unauthorized`, `forbidden`, `rate_limited`, `quota_exceeded`, `server_error` or `network`.
+
+Note that `rate_limited` and `quota_exceeded` both arrive as HTTP 429 and are not the same thing. A rate limit is when the API faces extreme traffic bursts and so retrying later works; but a spent quota needs your allowance raised or the window to roll over. The library retries rate limits for you, but not if your quota is exceeded.
+
+### Non-blocking use
+
+Every call has a `_p` twin returning a [Mojo::Promise](https://metacpan.org/pod/Mojo::Promise), so the library drops into a Mojolicious application without a worker or a thread:
+
+```perl
+$client->lookup_p('45.83.91.1')
+    ->then(sub { print shift->is_vpn })
+    ->catch(sub { warn shift })
+    ->wait;
+```
+
+The blocking calls are those same promises plus a `wait`, so both paths retry, cache and short-circuit identically. Inside an already running event loop the blocking calls cannot block, and say so rather than returning nothing.
+
+### Database downloads
+
+If your key carries the `db.download` scope, the licensed datasets are available through `$client->database`:
+
+```perl
+my $datasets = $client->database->list;
+my $url = $client->database->download_url('vpn_ip_extended_v1', 'mmdb');
+```
+
+`download_url` returns a time-limited link rather than the bytes, so you choose how to transfer a file that can run to gigabytes.
+
+## Other Libraries
+
+There are official VPNDetection client libraries available for many languages including PHP, Python, Go, Java, Ruby, and many popular frameworks such as Django, Rails, and Laravel. See our GitHub at https://github.com/vpndetection-io for more.
+
+## About VPNDetection
+
+VPN Detection API: Accurate anonymity detection identifying VPNs, residential proxies, hosting servers, Tor nodes, CDNs, relays and more.
+
+[<img src="https://s3.vpndetection.io/vpndetection-public/brand/mark.svg" alt="VPNDetection" width="96"/>](https://vpndetection.io/)
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

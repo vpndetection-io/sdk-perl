@@ -1,0 +1,25 @@
+# What `make manifest` must leave OUT of the released tarball. MANIFEST itself is
+# generated from this, so this file is the reviewable one.
+
+^\.git/
+^\.github/
+^\.gitignore$
+^scripts/
+# The pinned spec is the wire contract for this repo, not something a consumer
+# needs at runtime; it is 5000 lines of YAML.
+^spec/
+^testdata/bogons\.json$
+
+# Build output.
+^blib/
+^Makefile$
+^Makefile\.old$
+^pm_to_blib$
+^MYMETA\.
+^VPNDetection-
+^local/
+^\.cpanm/
+
+\.bak$
+\.tmp$
+~$

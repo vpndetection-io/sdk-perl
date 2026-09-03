@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 5.16 is the declared floor, and the only place it is checked. The
+        # official perl docker images below 5.22 use a manifest format current
+        # docker refuses to pull, so scripts/test.sh cannot reach it locally.
+        perl: ['5.16', '5.26', '5.32', '5.36', '5.40', '5.42']
+    name: perl ${{ matrix.perl }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: ${{ matrix.perl }}
+      - run: cpanm --notest --quiet --installdeps .
+      - run: perl Makefile.PL
+      - run: make
+      - run: prove -Ilib -Iblib/lib -r t
