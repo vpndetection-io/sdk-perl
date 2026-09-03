@@ -9,7 +9,7 @@ my %args = (
     ABSTRACT => 'Official Perl client library for the VPNDetection API',
     AUTHOR => 'Mslm Dev <support@vpndetection.io>',
     LICENSE => 'mit',
-    MIN_PERL_VERSION => '5.016',
+    MIN_PERL_VERSION => '5.022',
     PREREQ_PM => {
         # The whole HTTP stack, the JSON codec, the event loop and the promises,
         # from one distribution with no non-core dependencies of its own.
@@ -45,7 +45,7 @@ my %args = (
     clean => { FILES => 'VPNDetection-*' },
 );
 
-# The perl 5.16 the distribution declares ships ExtUtils::MakeMaker 6.63_02,
+# The perl 5.22 the distribution declares ships an ExtUtils::MakeMaker
 # which does not know TEST_REQUIRES and warns about it. Folding it into
 # PREREQ_PM there costs nothing, since Test::More is core on every perl this
 # runs on, and it keeps the floor installable without forcing a toolchain

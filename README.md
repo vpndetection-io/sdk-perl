@@ -13,7 +13,7 @@ The library helps you query VPNDetection's APIs for anonymity detection includin
 cpanm VPNDetection
 ```
 
-Requires Perl 5.16 or newer. [Mojolicious](https://metacpan.org/dist/Mojolicious) is the only runtime dependency, plus `IO::Socket::SSL` for TLS.
+Requires Perl 5.22 or newer. [Mojolicious](https://metacpan.org/dist/Mojolicious) is the only runtime dependency, plus `IO::Socket::SSL` for TLS.
 
 ## Usage
 
