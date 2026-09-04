@@ -42,27 +42,6 @@ print $result->is_hosting;           # 1
 print $result->hosting->{provider};
 ```
 
-### Absent is not the same as false
-
-A field your plan does not include is **absent**, which never means "we checked and found nothing". Perl makes this unusually easy to get wrong, because `undef`, `0`, `''` and a missing hash key are all false:
-
-```perl
-if ($result->is_hosting) { ... }          # WRONG: absent and false look identical here
-```
-
-Two readers say what you actually mean. `//` reads an absent field as false, and `has` asks whether your plan carries the field at all:
-
-```perl
-if ($result->is_hosting // 0) { ... }     # right: absent counts as false
-if ($result->has('is_hosting')) { ... }   # right: is this field in my plan?
-
-$result->is_hosting;        # 1, 0, or undef when your plan omits it
-$result->fields;            # the field names this answer carried
-$result->raw;               # the response exactly as it came off the wire
-```
-
-A detail object that is present but empty (`{}`) means the flag above it is false. A populated one always carries every one of its keys.
-
 ### Batch lookup
 
 You can do batch lookups with a list, which parallelizes requests for you efficiently:
@@ -175,6 +154,15 @@ my $url = $client->database->download_url('vpn_ip_extended_v1', 'mmdb');
 ```
 
 `download_url` returns a time-limited link rather than the bytes, so you choose how to transfer a file that can run to gigabytes.
+
+### Absent is not false
+
+A field your plan does not include is absent, which never means "we checked and found nothing". Perl makes that easy to miss, since `undef` and `0` are both false.
+
+```perl
+if ($result->is_hosting // 0) { ... }     # absent counts as false
+if ($result->has('is_hosting')) { ... }   # is this field in my plan?
+```
 
 ## Other Libraries
 
