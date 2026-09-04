@@ -146,14 +146,24 @@ The blocking calls are those same promises plus a `wait`, so both paths retry, c
 
 ### Database downloads
 
-If your key carries the `db.download` scope, the licensed datasets are available through `$client->database`:
+If your key carries the `db.download` scope, the licensed datasets are available through `$client->database`. A license covers a dataset *family*, and the id you download is the one hanging off its `versions`:
 
 ```perl
 my $datasets = $client->database->list;
-my $url = $client->database->download_url('vpn_ip_extended_v1', 'mmdb');
+my $id = $datasets->[0]{versions}[0]{id};    # e.g. vpn_ip_v1
 ```
 
-`download_url` returns a time-limited link rather than the bytes, so you choose how to transfer a file that can run to gigabytes.
+There are three ways to fetch one: as a link you transfer yourself, as bytes, or straight to a file.
+
+```perl
+my $db = $client->database;
+
+my $url = $db->download_url($id, 'mmdb');                  # a time-limited link
+my $bytes = $db->download_bytes('cdn_ip_v1', 'csvgz');     # in memory
+my $written = $db->download($id, 'mmdb', "./$id.mmdb");    # streamed to disk
+```
+
+`download` holds nothing beyond one chunk however large the dataset is, writes through a neighboring `.part` file so a transfer that dies half way leaves nothing that reads as a whole dataset, and raises rather than accepts a body that stops early. `download_bytes` holds the **whole file in memory**, and the catalog runs from `cdn_ip_v1` at 10 KB to `resproxy_ip_90d_v1` at 1.79 GB, so use `download` for anything you have not measured.
 
 ### Absent is not false
 

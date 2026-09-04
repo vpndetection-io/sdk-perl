@@ -4,7 +4,8 @@
 # toolchain and every run starts from the same one.
 #
 #   ./scripts/test.sh                          # the whole suite
-#   PERL_IMAGE=perl:5.16 ./scripts/test.sh     # the declared floor
+#   PERL_IMAGE=perl:5.22 ./scripts/test.sh     # the floor, and the oldest image
+#                                              # current docker can still pull
 #   VPNDETECTION_LIVE=1 ./scripts/test.sh t/04-live.t
 #   ./scripts/test.sh t/03-client.t            # one file
 #
