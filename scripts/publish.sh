@@ -33,10 +33,14 @@ docker run --rm \
     -e PAUSE_USER \
     -e PAUSE_PASSWORD \
     "$PERL_IMAGE" sh -euc "
-        cpanm --notest --quiet --installdeps /src
-        cpanm --notest --quiet CPAN::Uploader
         cp -R /src /w
         cd /w
+        # Deps are resolved from the COPY, not from /src. cpanm writes Makefile
+        # and MYMETA into the distribution directory it is pointed at, so
+        # --installdeps against the read-only mount fails at configure time and
+        # takes the whole release with it.
+        cpanm --notest --quiet --installdeps .
+        cpanm --notest --quiet CPAN::Uploader
         tag=\"\$(perl -Ilib -MVPNDetection -e 'print \$VPNDetection::VERSION')\"
         echo \"==> VPNDetection \$tag\"
         perl Makefile.PL
