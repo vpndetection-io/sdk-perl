@@ -10,6 +10,7 @@ use Mojo::Promise;
 use Mojo::URL;
 use Mojo::UserAgent;
 use Mojo::Util ();
+use Scalar::Util ();
 
 use VPNDetection::Bogon ();
 use VPNDetection::Cache;
@@ -207,6 +208,81 @@ sub _json_p {
 sub _get_p {
     my ($self, $url) = @_;
     return $self->{ua}->get_p($url => $self->_headers)->catch(sub {
+        die VPNDetection::Error->new(kind => 'network', message => "$_[0]");
+    });
+}
+
+# One dataset transfer. Every chunk is handed to $on_chunk and none is kept, so a
+# body costs the same in memory whether it is 10 KB or 1.79 GB. Resolves with the
+# number of bytes handed over.
+sub _stream_p {
+    my ($self, $url, $on_chunk) = @_;
+    # Built here rather than through _get_p, which is the only place the API key
+    # is ever attached: the presigned link authorizes itself, so carrying the key
+    # would hand it to a host with no business holding it.
+    my $tx = $self->{ua}->build_tx(GET => $url);
+
+    # Mojo asks for gzip on every request it builds. A dataset file is already
+    # compressed, so the only thing that would buy is a Content-Length counting
+    # bytes that never reach the sink, and that length is the only evidence the
+    # transfer arrived whole.
+    $tx->req->headers->remove('Accept-Encoding');
+    # Mojo aborts a response past max_message_size, counting every byte it parses
+    # whether or not it keeps any of them. The default is 2 GiB, which the
+    # catalog is already within an order of magnitude of, and
+    # MOJO_MAX_MESSAGE_SIZE lowers it for every response in the process, on a
+    # machine whose environment we do not own.
+    $tx->res->max_message_size(0);
+
+    my $received = 0;
+    # Unsubscribing Mojo's own reader is what stops the body being collected into
+    # the message. The subscriber hangs off the transaction, so holding the
+    # transaction strongly inside it would be a cycle the interpreter never
+    # collects; the user agent keeps it alive for as long as bytes are arriving.
+    my $weak = $tx;
+    Scalar::Util::weaken($weak);
+    $tx->res->content->unsubscribe('read')->on(read => sub {
+        my (undef, $bytes) = @_;
+        # An error body is neither written out nor held: the status is what
+        # separates a lapsed link from a refused one, and nothing bounds the size
+        # of what a storage host puts in the body of a refusal.
+        return unless $weak && ($weak->res->code || 0) == 200;
+        $received += length $bytes;
+        $on_chunk->($bytes);
+    });
+
+    return $self->_start_untimed_p($tx)->then(sub {
+        my $res = shift->res;
+        die VPNDetection::Error->from_response($res->code, $res->headers, {
+            error => 'object storage refused the download link with status ' . $res->code,
+        }) unless $res->code == 200;
+
+        # A body that stops early reaches Perl as an ordinary end of stream: the
+        # status was 200 and Mojo reports no error, so without this a half
+        # transfer is a short file nobody notices.
+        my $declared = $res->headers->content_length;
+        die VPNDetection::Error->new(
+            kind => 'network',
+            message => "the transfer ended after $received of $declared bytes",
+        ) if defined $declared && length $declared && $declared != $received;
+        return $received;
+    });
+}
+
+# request_timeout bounds the WHOLE response and Mojo::UserAgent has no
+# per-transaction form of it, so the 30 seconds that is right for a lookup is
+# wrong for a gigabyte. It is lifted only across the hand-over: start_p reaches
+# the agent synchronously, so no other request can be started inside the window.
+sub _start_untimed_p {
+    my ($self, $tx) = @_;
+    my $ua = $self->{ua};
+    my $bound = $ua->request_timeout;
+    $ua->request_timeout(0);
+    my $promise = eval { $ua->start_p($tx) };
+    my $failed = $@;
+    $ua->request_timeout($bound);
+    die VPNDetection::Error->wrap($failed) unless $promise;
+    return $promise->catch(sub {
         die VPNDetection::Error->new(kind => 'network', message => "$_[0]");
     });
 }

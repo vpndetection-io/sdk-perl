@@ -145,14 +145,27 @@ subtest 'the API key reaches the wire, and only one way' => sub {
 };
 
 subtest 'database responses are unwrapped at the right depth' => sub {
+    # A license covers a dataset FAMILY, and the id a download takes hangs off
+    # `versions`. An earlier spec claimed the list answered {id, formats}, which
+    # it never did, so `list` handed back a shape that could not be downloaded.
+    my $family = {
+        base => 'vpn_ip', name => 'VPN IP', summary => 'IP ranges observed as VPN infrastructure.',
+        redistribution => 'internal', starts => '2026-09-04T07:49:45.118Z', expires => undef,
+        in_term => 1, standing => 'licensed',
+        versions => [{
+            id => 'vpn_ip_v1', version => 1, summary => 'IP ranges observed as VPN infrastructure.',
+            formats => [{ format => 'csvgz', bytes => 111013959 }],
+            sampleFormats => ['csvgz'],
+        }],
+    };
     my %bodies = (
         '/api/v1/database/checksum' => {
-            id => 'vpn_ip_extended_v1', format => 'mmdb',
+            id => 'vpn_ip_v1', format => 'mmdb',
             checksums => { md5 => 'm', sha1 => 's1', sha256 => 's256', sha512 => 's512' },
         },
-        '/api/v1/database/list' => { datasets => [{ id => 'vpn_ip_extended_v1' }] },
-        '/api/v1/database/downloads' => { downloads => [{ dataset_id => 'vpn_ip_extended_v1' }] },
-        '/api/v1/database/metadata' => { id => 'vpn_ip_extended_v1', entries => 42 },
+        '/api/v1/database/list' => { datasets => [$family] },
+        '/api/v1/database/downloads' => { downloads => [{ dataset_id => 'vpn_ip_v1' }] },
+        '/api/v1/database/metadata' => { id => 'vpn_ip_v1', entries => 42 },
     );
     my $origin = VPNDetectionTest::Origin->new(sub {
         my ($c) = @_;
@@ -162,13 +175,17 @@ subtest 'database responses are unwrapped at the right depth' => sub {
 
     # `checksums` returns the WHOLE digest set. Reading a top-level sha256 shipped
     # broken in another SDK: it returned undef against a healthy API.
-    my $sums = $db->checksums('vpn_ip_extended_v1', 'mmdb');
+    my $sums = $db->checksums('vpn_ip_v1', 'mmdb');
     is_deeply($sums, $bodies{'/api/v1/database/checksum'}{checksums}, 'the whole digest set');
     is($sums->{sha256}, 's256', 'the digest a caller actually wants is there');
 
-    is_deeply($db->list, [{ id => 'vpn_ip_extended_v1' }], 'list unwraps datasets');
-    is_deeply($db->downloads, [{ dataset_id => 'vpn_ip_extended_v1' }], 'downloads unwraps downloads');
-    is($db->metadata('vpn_ip_extended_v1')->{entries}, 42, 'metadata is the whole document');
+    my $datasets = $db->list;
+    is_deeply($datasets, [$family], 'list unwraps datasets');
+    is($datasets->[0]{base}, 'vpn_ip', 'a family is keyed by base, not by a dataset id');
+    is($datasets->[0]{versions}[0]{id}, 'vpn_ip_v1', 'and the id to download hangs off versions');
+    ok(!exists $datasets->[0]{docsGroup}, 'docsGroup is a docs-site slug, not API surface');
+    is_deeply($db->downloads, [{ dataset_id => 'vpn_ip_v1' }], 'downloads unwraps downloads');
+    is($db->metadata('vpn_ip_v1')->{entries}, 42, 'metadata is the whole document');
 };
 
 subtest 'absent and false are different values, natively' => sub {
