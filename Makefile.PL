@@ -3,7 +3,7 @@ use warnings;
 
 use ExtUtils::MakeMaker;
 
-my %args = (
+WriteMakefile(
     NAME => 'VPNDetection',
     VERSION_FROM => 'lib/VPNDetection.pm',
     ABSTRACT => 'Official Perl client library for the VPNDetection API',
@@ -17,6 +17,8 @@ my %args = (
         # Mojolicious makes TLS optional; the API is HTTPS only, so we do not.
         'IO::Socket::SSL' => '2.009',
     },
+    # Safe to declare rather than fold into PREREQ_PM: TEST_REQUIRES needs
+    # ExtUtils::MakeMaker 6.64, and perl 5.022000 already shipped 7.04_01.
     TEST_REQUIRES => {
         'Test::More' => '0.98',
     },
@@ -41,18 +43,8 @@ my %args = (
             directory => ['t'],
         },
     },
+    # t/*.t only: integration/t installs this distribution from CPAN and tests
+    # that, so it is neither shipped nor run from here.
     test => { TESTS => 't/*.t' },
     clean => { FILES => 'VPNDetection-*' },
 );
-
-# The perl 5.22 the distribution declares ships an ExtUtils::MakeMaker
-# which does not know TEST_REQUIRES and warns about it. Folding it into
-# PREREQ_PM there costs nothing, since Test::More is core on every perl this
-# runs on, and it keeps the floor installable without forcing a toolchain
-# upgrade first.
-if (!eval { ExtUtils::MakeMaker->VERSION('6.64'); 1 }) {
-    my $test_requires = delete $args{TEST_REQUIRES};
-    $args{PREREQ_PM} = { %{ $args{PREREQ_PM} }, %$test_requires };
-}
-
-WriteMakefile(%args);
