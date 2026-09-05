@@ -252,7 +252,7 @@ itself:
         base => 'vpn_ip',               # what the license is held against
         name => 'VPN IP',
         summary => 'IP ranges observed as VPN infrastructure.',
-        license_type => 'standard',   # evaluation, internal or redistribute
+        license_type => 'standard',   # evaluation, standard or redistribute
         starts => '2026-09-04T07:49:45.118Z',
         expires => undef,               # undef when the license does not expire
         in_term => 1,                   # false once the term has ended
