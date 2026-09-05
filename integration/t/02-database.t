@@ -17,7 +17,7 @@ use VPNDetectionIntegration::Tiers qw(max_rung skip_for);
 # format, and that size is checked against the ceiling below FIRST, so a mistaken
 # dataset id can never quietly pull one of the gigabyte datasets through CI.
 
-# The max organization licenses cdn_ip for redistribution, and at ~10 KB it is
+# The max organization licenses cdn_ip for license_type, and at ~10 KB it is
 # the only dataset small enough to move in CI.
 my $DATASET = 'cdn_ip_v1';
 my $FORMAT = 'csvgz';
@@ -51,7 +51,7 @@ subtest 'the licensed catalog answers the family shape' => sub {
         ok(!exists $family->{id}, "$family->{base} is keyed by base rather than by a dataset id");
         like($family->{standing}, qr/\A(?:expired|licensed|unlicensed)\z/,
             "$family->{base} carries a documented standing");
-        like($family->{redistribution}, qr/\A(?:evaluation|internal|redistribute)\z/,
+        like($family->{license_type}, qr/\A(?:evaluation|internal|redistribute)\z/,
             "$family->{base} carries a documented right");
         ok(defined $family->{in_term}, "$family->{base} says whether the term is live");
         ok(ref $family->{versions} eq 'ARRAY' && @{ $family->{versions} },

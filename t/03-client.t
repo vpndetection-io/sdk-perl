@@ -150,7 +150,7 @@ subtest 'database responses are unwrapped at the right depth' => sub {
     # it never did, so `list` handed back a shape that could not be downloaded.
     my $family = {
         base => 'vpn_ip', name => 'VPN IP', summary => 'IP ranges observed as VPN infrastructure.',
-        redistribution => 'internal', starts => '2026-09-04T07:49:45.118Z', expires => undef,
+        license_type => 'standard', starts => '2026-09-04T07:49:45.118Z', expires => undef,
         in_term => 1, standing => 'licensed',
         versions => [{
             id => 'vpn_ip_v1', version => 1, summary => 'IP ranges observed as VPN infrastructure.',
