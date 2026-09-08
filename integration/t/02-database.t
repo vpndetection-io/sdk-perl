@@ -51,7 +51,7 @@ subtest 'the licensed catalog answers the family shape' => sub {
         ok(!exists $family->{id}, "$family->{base} is keyed by base rather than by a dataset id");
         like($family->{standing}, qr/\A(?:expired|licensed|unlicensed)\z/,
             "$family->{base} carries a documented standing");
-        like($family->{license_type}, qr/\A(?:evaluation|internal|redistribute)\z/,
+        like($family->{license_type}, qr/\A(?:evaluation|standard|redistribute)\z/,
             "$family->{base} carries a documented right");
         ok(defined $family->{in_term}, "$family->{base} says whether the term is live");
         ok(ref $family->{versions} eq 'ARRAY' && @{ $family->{versions} },
