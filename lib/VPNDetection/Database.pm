@@ -255,6 +255,8 @@ itself:
         license_type => 'standard',   # evaluation, standard or redistribute
         starts => '2026-09-04T07:49:45.118Z',
         expires => undef,               # undef when the license does not expire
+        renews_at => undef,             # when a rolling license next turns over
+        notice_due_at => undef,         # last day to give notice for that term
         in_term => 1,                   # false once the term has ended
         standing => 'licensed',         # licensed, expired or unlicensed
         versions => [
