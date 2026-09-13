@@ -39,8 +39,8 @@ my $transfer;
 subtest 'the licensed catalog answers the family shape' => sub {
     my $datasets = $client->database->list;
 
-    ok(@$datasets, 'the max organization licenses something');
-    my @ids;
+    ok(@$datasets, 'the catalogue is not empty');
+    my @licensed;
     for my $family (@$datasets) {
         # A license covers a FAMILY, and the ids a download takes hang off
         # `versions`. Before the spec was corrected this list did not exist, so
@@ -51,8 +51,18 @@ subtest 'the licensed catalog answers the family shape' => sub {
         ok(!exists $family->{id}, "$family->{base} is keyed by base rather than by a dataset id");
         like($family->{standing}, qr/\A(?:expired|licensed|unlicensed)\z/,
             "$family->{base} carries a documented standing");
-        like($family->{license_type}, qr/\A(?:evaluation|standard|redistribute)\z/,
-            "$family->{base} carries a documented right");
+        # list answers the WHOLE catalogue, so an unlicensed family is a normal
+        # row with no licence type at all. Asserting one either way is what tells
+        # an undef apart from a value this client cannot read.
+        if ($family->{standing} eq 'unlicensed') {
+            ok(!defined $family->{license_type},
+                "$family->{base} is unlicensed and carries no right");
+        }
+        else {
+            like($family->{license_type}, qr/\A(?:evaluation|standard|redistribute)\z/,
+                "$family->{base} carries a documented right");
+            push @licensed, $family->{base};
+        }
         ok(defined $family->{in_term}, "$family->{base} says whether the term is live");
         ok(ref $family->{versions} eq 'ARRAY' && @{ $family->{versions} },
             "$family->{base} carries its versions");
@@ -60,10 +70,12 @@ subtest 'the licensed catalog answers the family shape' => sub {
             ok(length($version->{id} || ''), "$family->{base} has a version with an id");
             ok(ref $version->{formats} eq 'ARRAY' && @{ $version->{formats} },
                 "$version->{id} carries its formats");
-            push @ids, $version->{id};
         }
     }
-    note('licensed: ' . join(', ', @ids));
+    # The max org holds grants in staging, so an empty list here is the catalogue
+    # arriving without any of them rather than a plan that buys nothing.
+    ok(@licensed, 'the max organization licenses something');
+    note('catalogue: ' . scalar(@$datasets) . ', licensed: ' . join(', ', @licensed));
 };
 
 subtest 'a dataset the organization does not license is refused cleanly' => sub {
