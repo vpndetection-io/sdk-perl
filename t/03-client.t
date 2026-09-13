@@ -155,7 +155,7 @@ subtest 'database responses are unwrapped at the right depth' => sub {
         versions => [{
             id => 'vpn_ip_v1', version => 1, summary => 'IP ranges observed as VPN infrastructure.',
             formats => [{ format => 'csvgz', bytes => 111013959 }],
-            sampleFormats => ['csvgz'],
+            sample_formats => ['csvgz'],
         }],
     };
     my %bodies = (
@@ -163,7 +163,7 @@ subtest 'database responses are unwrapped at the right depth' => sub {
             id => 'vpn_ip_v1', format => 'mmdb',
             checksums => { md5 => 'm', sha1 => 's1', sha256 => 's256', sha512 => 's512' },
         },
-        '/api/v1/database/list' => { datasets => [$family] },
+        '/api/v1/database/list' => { databases => [$family] },
         '/api/v1/database/downloads' => { downloads => [{ dataset_id => 'vpn_ip_v1' }] },
         '/api/v1/database/metadata' => { id => 'vpn_ip_v1', entries => 42 },
     );
@@ -179,11 +179,11 @@ subtest 'database responses are unwrapped at the right depth' => sub {
     is_deeply($sums, $bodies{'/api/v1/database/checksum'}{checksums}, 'the whole digest set');
     is($sums->{sha256}, 's256', 'the digest a caller actually wants is there');
 
-    my $datasets = $db->list;
-    is_deeply($datasets, [$family], 'list unwraps datasets');
-    is($datasets->[0]{base}, 'vpn_ip', 'a family is keyed by base, not by a dataset id');
-    is($datasets->[0]{versions}[0]{id}, 'vpn_ip_v1', 'and the id to download hangs off versions');
-    ok(!exists $datasets->[0]{docsGroup}, 'docsGroup is a docs-site slug, not API surface');
+    my $databases = $db->list;
+    is_deeply($databases, [$family], 'list unwraps databases');
+    is($databases->[0]{base}, 'vpn_ip', 'a family is keyed by base, not by a dataset id');
+    is($databases->[0]{versions}[0]{id}, 'vpn_ip_v1', 'and the id to download hangs off versions');
+    ok(!exists $databases->[0]{docsGroup}, 'docsGroup is a docs-site slug, not API surface');
     is_deeply($db->downloads, [{ dataset_id => 'vpn_ip_v1' }], 'downloads unwraps downloads');
     is($db->metadata('vpn_ip_v1')->{entries}, 42, 'metadata is the whole document');
 };
