@@ -42,6 +42,28 @@ print $result->is_hosting;           # 1
 print $result->hosting->{provider};
 ```
 
+### Your own address
+
+```perl
+my $result = $client->my_ip;
+print $result->ip;   # the address we saw this call come from
+```
+
+Same answer `lookup` would give for that address, and the same cost against your allowance. It is deliberately not cached: which address you are is the whole question, and a machine that moves between networks would otherwise be told where it used to be.
+
+### Your plan and usage
+
+```perl
+my $acct = $client->my_account;
+print $acct->{plan}{key};          # max
+print $acct->{usage}{requests};    # 580
+print $acct->{usage}{window_end};  # when the allowance resets
+```
+
+Usage counts against the anniversary of your subscription, not the calendar month and not the billing period, and it is the same number a lookup is gated on. `hard_limit` is `undef` on an uncapped plan, which is not the same as zero.
+
+`my_ip` returns a `VPNDetection::Result` like `lookup` does; `my_account` returns the decoded hashref. `my_ip_p` and `my_account_p` are the non-blocking forms.
+
 ### Batch lookup
 
 You can do batch lookups with a list, which parallelizes requests for you efficiently:
