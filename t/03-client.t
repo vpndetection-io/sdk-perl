@@ -286,4 +286,75 @@ subtest 'the non-blocking API works where the blocking one cannot' => sub {
     like($croaked, qr/lookup_p/, 'blocking inside a running loop points at the promise form');
 };
 
+
+subtest 'my_ip classifies the calling address and is never cached' => sub {
+    # The cache is keyed by address, and which address this is IS the question:
+    # a machine that moves between networks would otherwise be told where it
+    # used to be.
+    my $origin = VPNDetectionTest::Origin->new(sub {
+        my ($c) = @_;
+        is($c->req->url->path->to_string, '/myip', 'asked for the myip route');
+        $c->render(json => { ip => '45.83.91.1', is_vpn => \1 });
+    });
+    my $client = VPNDetection->new(base_url => $origin->url);
+
+    my $result = $client->my_ip;
+    is($result->ip, '45.83.91.1', 'answers the observed address');
+    ok($result->is_vpn, 'and classifies it');
+
+    $client->my_ip;
+    is($origin->count, 2, 'a second call goes to the network again');
+};
+
+subtest 'my_account reports the plan and the usage, and is never cached' => sub {
+    # The whole point is what has been spent, so a cached answer is a wrong one
+    # within seconds of the next request.
+    my $body = {
+        org_id => '85bb51e4-2eb6-4a31-8e4d-02ba8b98fe61',
+        apikey => {
+            id            => '0ab424cc-7619-4dad-b027-afacdc2cedb0',
+            expires       => undef,
+            allowed_cidrs => [],
+        },
+        plan  => { key => 'max', tier => 'max' },
+        usage => {
+            requests     => 580,
+            quota        => 5_000_000,
+            hard_limit   => undef,
+            window_start => '2026-09-04T07:00:00Z',
+            window_end   => '2026-10-04T07:00:00Z',
+        },
+    };
+    my $origin = VPNDetectionTest::Origin->new(sub {
+        my ($c) = @_;
+        is($c->req->url->path->to_string, '/api/v1/account/me', 'asked for the account route');
+        $c->render(json => $body);
+    });
+    my $client = VPNDetection->new(base_url => $origin->url);
+
+    my $account = $client->my_account;
+    is($account->{plan}{key},     'max',     'reports the plan');
+    is($account->{plan}{tier},    'max',     'and the field tier');
+    is($account->{usage}{requests}, 580,     'and what has been spent');
+    is($account->{usage}{quota}, 5_000_000,  'and what the plan includes');
+    # Undef means NEVER stop, which is not the same as a limit of zero.
+    is($account->{usage}{hard_limit}, undef, 'a null hard limit stays null');
+    is_deeply($account->{apikey}{allowed_cidrs}, [], 'an empty allowlist means unrestricted');
+
+    $client->my_account;
+    is($origin->count, 2, 'a second call goes to the network again');
+};
+
+subtest 'my_account surfaces an unauthorized key' => sub {
+    # Unlike a lookup there is no useful unauthenticated answer.
+    my $origin = VPNDetectionTest::Origin->new(sub {
+        shift->render(json => { error => 'invalid API key' }, status => 401);
+    });
+    my $client = VPNDetection->new(base_url => $origin->url, retries => 0);
+
+    eval { $client->my_account };
+    isa_ok($@, 'VPNDetection::Error', 'refused');
+    is($@->kind, 'unauthorized', 'and says why');
+};
+
 done_testing();
