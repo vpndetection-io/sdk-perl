@@ -131,7 +131,7 @@ sub my_entitlement_p {
     my ($self, %options) = @_;
     $self->_check_options('my_entitlement', \%options, 'retries');
 
-    my $url = $self->_url('/api/v1/entitlement/me');
+    my $url = $self->_url('/api/v1/entitlement');
     my $retries = defined $options{retries} ? $options{retries} : $self->{retries};
     return $self->_retry_p($retries, sub { $self->_json_p($url) });
 }

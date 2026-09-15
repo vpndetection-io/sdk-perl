@@ -327,7 +327,7 @@ subtest 'my_entitlement reports the plan and the usage, and is never cached' => 
     };
     my $origin = VPNDetectionTest::Origin->new(sub {
         my ($c) = @_;
-        is($c->req->url->path->to_string, '/api/v1/entitlement/me', 'asked for the account route');
+        is($c->req->url->path->to_string, '/api/v1/entitlement', 'asked for the account route');
         $c->render(json => $body);
     });
     my $client = VPNDetection->new(base_url => $origin->url);
