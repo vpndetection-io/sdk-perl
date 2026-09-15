@@ -19,14 +19,16 @@ subtest 'a batch honors the per-call concurrency, measured as peak in flight' =>
     # either way.
     my $origin = VPNDetectionTest::Origin->new(sub {
         my ($c) = @_;
-        my $ip = substr $c->req->url->path->to_string, 1;
-        VPNDetectionTest::Origin::slow_json($c, { ip => $ip, is_vpn => \0 }, 0.05);
+        VPNDetectionTest::Origin::slow_json($c, VPNDetectionTest::Origin::batch_body($c), 0.05);
     });
-    my @addresses = map { "9.9.9.$_" } 1 .. 12;
+    # Enough addresses for nine chunks of the batch endpoint's 1000, so a
+    # concurrency of six has something to bound: one request per chunk, and only
+    # the chunks overlap.
+    my @addresses = map { sprintf '9.%d.%d.%d', 1 + int($_ / 65536), int($_ / 256) % 256, $_ % 256 } 0 .. 8000;
 
     my $client = VPNDetection->new(base_url => $origin->url, cache_size => 0, concurrency => 2);
     $client->lookup_batch(\@addresses, concurrency => 6);
-    is($origin->count, scalar @addresses, 'every address was asked for');
+    is($origin->count, 9, 'one request per chunk of 1000');
     is($origin->peak_in_flight, 6, 'the per-call ceiling was reached and not exceeded');
 
     $origin->reset;

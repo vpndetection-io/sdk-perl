@@ -18,10 +18,14 @@ use VPNDetection::Database;
 use VPNDetection::Error;
 use VPNDetection::Result;
 
-our $VERSION = '3.0.0';
+our $VERSION = '3.1.0';
 our @EXPORT_OK = ('is_bogon');
 
 use constant DEFAULT_BASE_URL => 'https://api.vpndetection.io';
+
+# The most addresses POST /batch takes in one call; a larger batch is sent in
+# chunks of this size.
+use constant BATCH_MAX => 1000;
 
 my %OPTIONS = map { $_ => 1 } qw(
     api_key base_url cache_size cache_ttl concurrency retries timeout ua
@@ -152,15 +156,35 @@ sub lookup_batch_p {
 
     my $limit = defined $options{concurrency} ? $options{concurrency} : $self->{concurrency};
     Carp::croak('lookup_batch: concurrency must be at least 1') if $limit < 1;
+    my $retries = defined $options{retries} ? $options{retries} : $self->{retries};
 
+    # Bogons are answered locally and cached answers are reused; everything else
+    # goes to the batch endpoint in chunks of up to 1000 addresses, with at most
+    # `limit` chunks in flight. Keyed by address rather than positional, so
+    # duplicates in the input collapse to a single entry and the caller never has
+    # to line two lists up.
     my %seen;
-    my @queue = grep { defined && length && !$seen{$_}++ } @$ips;
-    my %lookup_options;
-    $lookup_options{retries} = $options{retries} if exists $options{retries};
+    my @unique = grep { defined && length && !$seen{$_}++ } @$ips;
+    my %answers;
+    my @pending;
+    for my $ip (@unique) {
+        if (VPNDetection::Bogon::is_bogon($ip)) {
+            $answers{$ip} = VPNDetection::Bogon::bogon_result($ip);
+            next;
+        }
+        my $hit = $self->{cache} ? $self->{cache}->get($ip) : undef;
+        if ($hit) {
+            $answers{$ip} = $hit;
+            next;
+        }
+        push @pending, $ip;
+    }
+    my @queue;
+    push @queue, [splice @pending, 0, BATCH_MAX] while @pending;
 
     my $batch = {
-        queue => \@queue, answers => {}, active => 0, limit => $limit,
-        options => \%lookup_options, promise => Mojo::Promise->new,
+        queue => \@queue, answers => \%answers, active => 0, limit => $limit,
+        retries => $retries, promise => Mojo::Promise->new,
     };
     $self->_dispatch($batch);
     return $batch->{promise};
@@ -173,10 +197,12 @@ sub database {
     return VPNDetection::Database->_new($self);
 }
 
-# Keeps exactly `limit` addresses in flight: every answer starts the next one, so
-# a per-call concurrency is a real ceiling rather than an option that was
-# accepted and ignored. A failing address carries its error as its value, so one
-# bad entry cannot lose the rest of the answers.
+# Keeps exactly `limit` chunks in flight: every answer starts the next one, so a
+# per-call concurrency is a real ceiling rather than an option that was accepted
+# and ignored. A failing address carries its error as its value, so one bad
+# entry cannot lose the rest of the answers: the API reports a per-entry failure
+# with the status the single lookup would have answered, and a chunk that fails
+# as a whole marks every address in it.
 sub _dispatch {
     my ($self, $batch) = @_;
     if (!@{$batch->{queue}} && !$batch->{active}) {
@@ -184,19 +210,54 @@ sub _dispatch {
         return;
     }
     while ($batch->{active} < $batch->{limit} && @{$batch->{queue}}) {
-        my $ip = shift @{$batch->{queue}};
+        my $chunk = shift @{$batch->{queue}};
         $batch->{active}++;
-        $self->lookup_p($ip, %{ $batch->{options} })->then(
-            sub {
-                $batch->{answers}{$ip} = shift;
-                $self->_settled($batch);
-            },
-            sub {
-                $batch->{answers}{$ip} = VPNDetection::Error->wrap(shift);
-                $self->_settled($batch);
-            },
-        );
+        $self->_lookup_chunk_p($chunk, $batch->{retries})->then(sub {
+            my $answers = shift;
+            $batch->{answers}{$_} = $answers->{$_} for keys %$answers;
+            $self->_settled($batch);
+        });
     }
+}
+
+# One POST /batch, mapped back onto the addresses it was asked about. A
+# chunk-level failure - the call refused, the transport failing, the retries
+# exhausted - becomes every address's error, exactly as it would have been had
+# each been looked up alone. Never rejects: the failure is the value.
+sub _lookup_chunk_p {
+    my ($self, $chunk, $retries) = @_;
+    my $url = $self->_url('/batch');
+    return $self->_retry_p($retries, sub { $self->_json_p($url, { ips => $chunk }) })->then(
+        sub {
+            my $body = shift;
+            my $results = ref $body->{results} eq 'HASH' ? $body->{results} : {};
+            my $errors = ref $body->{errors} eq 'HASH' ? $body->{errors} : {};
+            my %answers;
+            for my $ip (@$chunk) {
+                if (ref $results->{$ip} eq 'HASH') {
+                    my $result = VPNDetection::Result->from_wire($results->{$ip});
+                    $self->{cache}->set($ip, $result) if $self->{cache};
+                    $answers{$ip} = $result;
+                }
+                elsif (ref $errors->{$ip} eq 'HASH') {
+                    $answers{$ip} = VPNDetection::Error->from_entry(
+                        $errors->{$ip}{status}, $errors->{$ip}{error},
+                    );
+                }
+                else {
+                    $answers{$ip} = VPNDetection::Error->new(
+                        kind => 'server_error', status => 200,
+                        message => "the batch answer did not include $ip",
+                    );
+                }
+            }
+            return \%answers;
+        },
+        sub {
+            my $error = VPNDetection::Error->wrap(shift);
+            return { map { $_ => $error } @$chunk };
+        },
+    );
 }
 
 # Releasing the slot happens in the SAME handler that records the answer. A
@@ -224,17 +285,18 @@ sub _retry_p {
 }
 
 sub _json_p {
-    my ($self, $url) = @_;
-    return $self->_get_p($url)->then(sub {
+    my ($self, $url, $body) = @_;
+    my $sent = defined $body ? $self->_post_p($url, $body) : $self->_get_p($url);
+    return $sent->then(sub {
         my $res = shift->res;
         die VPNDetection::Error->from_response($res->code, $res->headers, $res->json)
             unless $res->is_success;
-        my $body = $res->json;
+        my $decoded = $res->json;
         die VPNDetection::Error->new(
             kind => 'server_error', status => $res->code,
             message => 'the API did not answer with a JSON object',
-        ) unless ref $body eq 'HASH';
-        return $body;
+        ) unless ref $decoded eq 'HASH';
+        return $decoded;
     });
 }
 
@@ -244,6 +306,15 @@ sub _json_p {
 sub _get_p {
     my ($self, $url) = @_;
     return $self->{ua}->get_p($url => $self->_headers)->catch(sub {
+        die VPNDetection::Error->new(kind => 'network', message => "$_[0]");
+    });
+}
+
+# The one request with a body: the batch. Mojo encodes the JSON and sets the
+# content type.
+sub _post_p {
+    my ($self, $url, $body) = @_;
+    return $self->{ua}->post_p($url => $self->_headers => json => $body)->catch(sub {
         die VPNDetection::Error->new(kind => 'network', message => "$_[0]");
     });
 }
