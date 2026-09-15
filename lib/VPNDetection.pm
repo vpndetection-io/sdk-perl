@@ -18,7 +18,7 @@ use VPNDetection::Database;
 use VPNDetection::Error;
 use VPNDetection::Result;
 
-our $VERSION = '2.1.0';
+our $VERSION = '3.0.0';
 our @EXPORT_OK = ('is_bogon');
 
 use constant DEFAULT_BASE_URL => 'https://api.vpndetection.io';
@@ -121,17 +121,17 @@ sub my_ip_p {
 
 # What this key is entitled to and what it has spent. Deliberately not cached:
 # the whole point is the number, and a cached one is wrong within seconds.
-sub my_account {
+sub my_entitlement {
     my $self = shift;
-    $self->_assert_blocking_ok('my_account');
-    return $self->_wait($self->my_account_p(@_));
+    $self->_assert_blocking_ok('my_entitlement');
+    return $self->_wait($self->my_entitlement_p(@_));
 }
 
-sub my_account_p {
+sub my_entitlement_p {
     my ($self, %options) = @_;
-    $self->_check_options('my_account', \%options, 'retries');
+    $self->_check_options('my_entitlement', \%options, 'retries');
 
-    my $url = $self->_url('/api/v1/account/me');
+    my $url = $self->_url('/api/v1/entitlement/me');
     my $retries = defined $options{retries} ? $options{retries} : $self->{retries};
     return $self->_retry_p($retries, sub { $self->_json_p($url) });
 }
@@ -474,17 +474,17 @@ Deliberately B<not cached>. The cache is keyed by address, and which address thi
 is IS the question: a machine that moves between networks would otherwise be told
 where it used to be.
 
-=head2 my_account
+=head2 my_entitlement
 
-    my $account = $client->my_account;
-    printf "%d of %d\n", $account->{usage}{requests}, $account->{usage}{quota};
+    my $ent = $client->my_entitlement;
+    printf "%d of %d\n", $ent->{usage}{requests}, $ent->{usage}{quota};
 
 What this client's API key is entitled to, and how much of it has been used, as a
 hash reference with C<org_id>, C<apikey>, C<plan> and C<usage> keys.
 
 Named for what it answers rather than C<me>, which sits one letter from C<my_ip>
 and means something quite different: one is which address you are calling FROM,
-the other is which account you are calling AS.
+the other is what the key you are calling WITH may spend.
 
 Unlike a lookup there is no useful unauthenticated answer, so a client built
 without an API key gets an unauthorized error rather than a partial one.

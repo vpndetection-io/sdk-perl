@@ -306,7 +306,7 @@ subtest 'my_ip classifies the calling address and is never cached' => sub {
     is($origin->count, 2, 'a second call goes to the network again');
 };
 
-subtest 'my_account reports the plan and the usage, and is never cached' => sub {
+subtest 'my_entitlement reports the plan and the usage, and is never cached' => sub {
     # The whole point is what has been spent, so a cached answer is a wrong one
     # within seconds of the next request.
     my $body = {
@@ -327,12 +327,12 @@ subtest 'my_account reports the plan and the usage, and is never cached' => sub 
     };
     my $origin = VPNDetectionTest::Origin->new(sub {
         my ($c) = @_;
-        is($c->req->url->path->to_string, '/api/v1/account/me', 'asked for the account route');
+        is($c->req->url->path->to_string, '/api/v1/entitlement/me', 'asked for the account route');
         $c->render(json => $body);
     });
     my $client = VPNDetection->new(base_url => $origin->url);
 
-    my $account = $client->my_account;
+    my $account = $client->my_entitlement;
     is($account->{plan}{key},     'max',     'reports the plan');
     is($account->{plan}{tier},    'max',     'and the field tier');
     is($account->{usage}{requests}, 580,     'and what has been spent');
@@ -341,18 +341,18 @@ subtest 'my_account reports the plan and the usage, and is never cached' => sub 
     is($account->{usage}{hard_limit}, undef, 'a null hard limit stays null');
     is_deeply($account->{apikey}{allowed_cidrs}, [], 'an empty allowlist means unrestricted');
 
-    $client->my_account;
+    $client->my_entitlement;
     is($origin->count, 2, 'a second call goes to the network again');
 };
 
-subtest 'my_account surfaces an unauthorized key' => sub {
+subtest 'my_entitlement surfaces an unauthorized key' => sub {
     # Unlike a lookup there is no useful unauthenticated answer.
     my $origin = VPNDetectionTest::Origin->new(sub {
         shift->render(json => { error => 'invalid API key' }, status => 401);
     });
     my $client = VPNDetection->new(base_url => $origin->url, retries => 0);
 
-    eval { $client->my_account };
+    eval { $client->my_entitlement };
     isa_ok($@, 'VPNDetection::Error', 'refused');
     is($@->kind, 'unauthorized', 'and says why');
 };

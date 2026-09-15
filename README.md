@@ -54,7 +54,7 @@ Same answer `lookup` would give for that address, and the same cost against your
 ### Your plan and usage
 
 ```perl
-my $acct = $client->my_account;
+my $acct = $client->my_entitlement;
 print $acct->{plan}{key};          # max
 print $acct->{usage}{requests};    # 580
 print $acct->{usage}{window_end};  # when the allowance resets
@@ -62,7 +62,7 @@ print $acct->{usage}{window_end};  # when the allowance resets
 
 Usage counts against the anniversary of your subscription, not the calendar month and not the billing period, and it is the same number a lookup is gated on. `hard_limit` is `undef` on an uncapped plan, which is not the same as zero.
 
-`my_ip` returns a `VPNDetection::Result` like `lookup` does; `my_account` returns the decoded hashref. `my_ip_p` and `my_account_p` are the non-blocking forms.
+`my_ip` returns a `VPNDetection::Result` like `lookup` does; `my_entitlement` returns the decoded hashref. `my_ip_p` and `my_entitlement_p` are the non-blocking forms.
 
 ### Batch lookup
 
