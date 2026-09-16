@@ -42,32 +42,25 @@ subtest 'a batch honors the per-call concurrency, measured as peak in flight' =>
     is($origin->peak_in_flight, 1, 'concurrency 1 is genuinely serial');
 };
 
-subtest 'a batch of any size is sent in chunks rather than refused' => sub {
-    # Chunking to the endpoint's 1000 is the library's job, so a batch has no cap
-    # of its own: 2,500 addresses are three requests, not an error.
-    my @sizes;
-    my $origin = VPNDetectionTest::Origin->new(sub {
-        my ($c) = @_;
-        push @sizes, scalar @{ $c->req->json->{ips} };
-        $c->render(json => VPNDetectionTest::Origin::batch_body($c));
-    });
-    my @addresses = map { sprintf '9.1.%d.%d', int($_ / 256), $_ % 256 } 0 .. 2499;
-
+subtest 'a concurrency below 1 is refused before any request' => sub {
+    # A batch that can put no chunk in flight never finishes, so this is refused
+    # up front rather than discovered by a caller left waiting.
+    my $origin = VPNDetectionTest::Origin->new(sub { shift->render(json => {}) });
     my $client = VPNDetection->new(base_url => $origin->url, cache_size => 0);
-    my $answers = eval { $client->lookup_batch(\@addresses) } || {};
-
-    is($@, '', '2,500 addresses are not refused');
-    is_deeply([$origin->paths], ['/batch', '/batch', '/batch'], 'they are three requests');
-    is_deeply([sort { $a <=> $b } @sizes], [500, 1000, 1000], 'of at most 1000 addresses each');
-    is(scalar keys %$answers, 2500, 'and every address is answered once');
-    my @answered = grep {
-        ref $answers->{$_} eq 'VPNDetection::Result' && $answers->{$_}->ip eq $_
-    } @addresses;
-    is(scalar @answered, 2500, 'each one for itself');
+    for my $bad (0, -1) {
+        # Raced against a timer: accepted, it would be a batch that never ends.
+        my $batch = eval { $client->lookup_batch_p(['9.9.9.1', '9.9.9.2'], concurrency => $bad) };
+        like($@, qr/concurrency must be at least 1/, "lookup_batch refuses concurrency => $bad");
+        Mojo::Promise->race($batch, Mojo::Promise->timer(1))->wait if $batch;
+        eval { VPNDetection->new(concurrency => $bad) };
+        like($@, qr/concurrency must be at least 1/, "new refuses concurrency => $bad");
+    }
+    is($origin->count, 0, 'and not one request was spent finding out');
 };
 
-subtest 'a per-call timeout below the client one fires on a stalled body' => sub {
-    my $origin = VPNDetectionTest::Origin->new(\&VPNDetectionTest::Origin::stall_body);
+for my $body (qw(stall_body trickle_body)) {
+subtest "a per-call timeout below the client one fires on a $body" => sub {
+    my $origin = VPNDetectionTest::Origin->new(\&{"VPNDetectionTest::Origin::$body"});
     my $client = VPNDetection->new(
         base_url => $origin->url, api_key => 'k', cache_size => 0, retries => 0, timeout => 3,
     );
@@ -96,7 +89,18 @@ subtest 'a per-call timeout below the client one fires on a stalled body' => sub
         cmp_ok($elapsed, '>=', 0.2, "$name: the call waited for it");
         cmp_ok($elapsed, '<', 1.5, "$name: the call's 0.25s fired, not the client's 3s");
     }
+
+    # A per-call value left on something the client shares would pass the loop
+    # above and leave every later call on the wrong bound.
+    my $bounded = VPNDetection->new(base_url => $origin->url, cache_size => 0, retries => 0, timeout => 0.25);
+    my $started = Time::HiRes::time();
+    eval { $bounded->lookup('9.9.9.9') };
+    my $elapsed = Time::HiRes::time() - $started;
+    is(ref $@ && $@->kind, 'network', "without an override the client's own bound fires");
+    cmp_ok($elapsed, '>=', 0.2, 'after waiting for it');
+    cmp_ok($elapsed, '<', 1.5, 'at its 0.25s');
 };
+}
 
 subtest 'a per-call timeout bounds every attempt of that call and nothing after it' => sub {
     my $origin = VPNDetectionTest::Origin->new(sub {
