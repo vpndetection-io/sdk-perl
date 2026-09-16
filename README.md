@@ -201,6 +201,25 @@ my $written = $db->download($id, 'mmdb', "./$id.mmdb");    # streamed to disk
 
 A format is `csvgz` or `mmdb`, and `VPNDetection::Database::FORMATS` lists them. Anything else is refused before a request is made.
 
+### Sign in with OAuth (device flow)
+
+A program running on the person's own machine can let them sign in with a browser and pick one of their API keys, instead of asking them to paste it:
+
+```perl
+my $client = VPNDetection->new;
+
+my $device = $client->oauth->device_authorization('your-client-id',
+    scope => 'account.read apikeys.read apikeys.reveal');
+print "Open $device->{verification_uri} and enter $device->{user_code}\n";
+
+my $token = $client->oauth->poll_device_token('your-client-id', $device);
+die "no API key came back: none was picked, or it can't be shown again\n"
+    unless defined $token->{apikey};
+my $keyed = VPNDetection->new(api_key => $token->{apikey});
+```
+
+A denied sign-in dies with `VPNDetection::OauthAccessDeniedError` and a code that ran out with `VPNDetection::OauthExpiredTokenError`. Client IDs are issued on request from support@vpndetection.io, and `$client->oauth->revoke('your-client-id', $token->{refresh_token})` signs the machine out again.
+
 ### Absent is not false
 
 A field your plan does not include is absent, which never means "we checked and found nothing". Perl makes that easy to miss, since `undef` and `0` are both false.

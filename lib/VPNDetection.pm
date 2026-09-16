@@ -16,6 +16,7 @@ use VPNDetection::Bogon ();
 use VPNDetection::Cache;
 use VPNDetection::Database;
 use VPNDetection::Error;
+use VPNDetection::Oauth;
 use VPNDetection::Result;
 
 our $VERSION = '3.1.0';
@@ -196,6 +197,12 @@ sub lookup_batch_p {
 sub database {
     my ($self) = @_;
     return VPNDetection::Database->_new($self);
+}
+
+# The OAuth device-flow sign-in, built per call for the same reason.
+sub oauth {
+    my ($self) = @_;
+    return VPNDetection::Oauth->_new($self);
 }
 
 # Keeps exactly `limit` chunks in flight: every answer starts the next one, so a
@@ -614,10 +621,19 @@ Also exportable, for code with no client to hand:
 
 The licensed dataset downloads. See L<VPNDetection::Database>.
 
+=head2 oauth
+
+    my $device = $client->oauth->device_authorization('your-client-id');
+
+Signs a person in on their own machine with the OAuth device flow, so a program
+can be handed one of their API keys instead of asking for it. See
+L<VPNDetection::Oauth>.
+
 =head1 NON-BLOCKING USE
 
 Every call has a C<_p> twin returning a L<Mojo::Promise>: C<lookup_p>,
-C<lookup_batch_p>, and the same on L<VPNDetection::Database>. The blocking forms
+C<lookup_batch_p>, and the same on L<VPNDetection::Database> and
+L<VPNDetection::Oauth>. The blocking forms
 are those promises plus a C<wait>, so nothing is duplicated and both paths retry,
 cache and short-circuit identically.
 
@@ -631,7 +647,8 @@ blocking forms cannot work and croak saying so. Use the C<_p> forms there.
 
 =head1 SEE ALSO
 
-L<VPNDetection::Result>, L<VPNDetection::Error>, L<VPNDetection::Database>.
+L<VPNDetection::Result>, L<VPNDetection::Error>, L<VPNDetection::Database>,
+L<VPNDetection::Oauth>.
 
 =head1 LICENSE
 
