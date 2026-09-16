@@ -271,17 +271,18 @@ sub _settled {
 }
 
 # Recurses through $self rather than through a self-referential closure, which
-# in Perl would be a reference cycle the interpreter never collects.
+# in Perl would be a reference cycle the interpreter never collects. $may_retry,
+# when given, can veto a retry the error alone would allow.
 sub _retry_p {
-    my ($self, $left, $attempt) = @_;
+    my ($self, $left, $attempt, $may_retry) = @_;
     return $attempt->()->catch(sub {
         my $error = VPNDetection::Error->wrap(shift);
-        die $error if $left <= 0 || !$error->retryable;
+        die $error if $left <= 0 || !$error->retryable || ($may_retry && !$may_retry->());
         # A server-supplied delay is honored with a TIMER, never a sleep: this
         # promise shares an event loop with every other request in the batch, and
         # sleeping here would stall all of them.
         return Mojo::Promise->timer($error->retry_after || 0)
-            ->then(sub { $self->_retry_p($left - 1, $attempt) });
+            ->then(sub { $self->_retry_p($left - 1, $attempt, $may_retry) });
     });
 }
 
