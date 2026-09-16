@@ -80,7 +80,14 @@ sub facts_for {
             $carried = 1 if !ref $value && index($value, $key) >= 0;
         }
     }
-    return { host => $req->url->host, path => $req->url->path->to_string, carried_key => $carried };
+    # A POST /batch carries its addresses in the body, so the path alone no longer
+    # says what was asked about.
+    my $body = $req->json;
+    my $ips = ref $body eq 'HASH' && ref $body->{ips} eq 'ARRAY' ? [@{ $body->{ips} }] : [];
+    return {
+        host => $req->url->host, path => $req->url->path->to_string, ips => $ips,
+        carried_key => $carried,
+    };
 }
 
 sub client_for {

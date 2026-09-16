@@ -4,7 +4,7 @@
 # distribution: the whole point of this suite is the artifact a stranger installs,
 # so scripts/run.pl refuses the run if it resolves anywhere else. This file is
 # the single source of the floor that run.pl checks against what is published.
-requires 'VPNDetection', '2.0.0';
+requires 'VPNDetection', '3.1.0';
 
 # Used directly by the suite, to watch what the client puts on the wire.
 requires 'Mojolicious', '9.00';

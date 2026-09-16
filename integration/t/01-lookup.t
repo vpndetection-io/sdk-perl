@@ -116,19 +116,20 @@ subtest 'a bogon is answered without touching the network' => sub {
 };
 
 subtest 'a batch collapses duplicates and keeps bogons off the wire' => sub {
-    my @asked;
-    my $client = client_for(unauth_rung(), sub { push @asked, shift->{path} });
+    my %asked;
+    my $client = client_for(unauth_rung(), sub {
+        my $fact = shift;
+        $asked{ join ' ', $fact->{path}, join ',', @{ $fact->{ips} } } = 1;
+    });
 
     my @wanted = (PROBE, '8.8.8.8', '10.0.0.1');
-    my @servable = ('/' . PROBE, '/8.8.8.8');
     my $answers = $client->lookup_batch([PROBE, '8.8.8.8', PROBE, '10.0.0.1', '8.8.8.8']);
 
     is_deeply([sort keys %$answers], [sort @wanted], 'three addresses answered from five');
-    # Distinct paths rather than a call count, so a retry against a wobbling
+    # Distinct requests rather than a call count, so a retry against a wobbling
     # staging cannot read as a failure to deduplicate.
-    my %asked = map { $_ => 1 } @asked;
-    is_deeply([sort keys %asked], [sort @servable],
-        'and only the two servable ones reached the API');
+    is_deeply([keys %asked], ['/batch ' . PROBE . ',8.8.8.8'],
+        'and only the two servable ones reached the API, in one POST /batch');
     is($answers->{'10.0.0.1'}->is_bogon, 1, 'the private address was answered locally');
     for my $ip (PROBE, '8.8.8.8') {
         isa_ok($answers->{$ip}, 'VPNDetection::Result', $ip);
