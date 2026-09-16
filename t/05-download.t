@@ -255,4 +255,29 @@ subtest 'a transfer refuses arguments it cannot use' => sub {
     like($@, qr/unknown option/, 'and refuses a typo rather than ignoring it');
 };
 
+subtest 'an unpublished format is refused before the network' => sub {
+    my $origin = origin_for(\&whole_dataset);
+    my ($dir, $path) = temp_path();
+    my $db = VPNDetection->new(base_url => $origin->url, api_key => 'k')->database;
+
+    is_deeply([VPNDetection::Database::FORMATS], ['csvgz', 'mmdb'], 'the published formats are exported');
+    for my $format ('zip', 'MMDB', 'csv.gz') {
+        for my $call (
+            [checksums => sub { $db->checksums('cdn_ip_v1', $format) }],
+            [download_url => sub { $db->download_url('cdn_ip_v1', $format) }],
+            [download => sub { $db->download('cdn_ip_v1', $format, $path) }],
+            [download_bytes => sub { $db->download_bytes('cdn_ip_v1', $format) }],
+        ) {
+            eval { $call->[1]->() };
+            like($@, qr/'\Q$format\E' is not a published format; expected one of csvgz, mmdb/,
+                "$call->[0] refuses '$format', naming what it takes");
+        }
+    }
+    is($origin->count, 0, 'and not one request was spent finding out');
+    ok(!-e "$path.part", 'nor was a .part file left behind');
+
+    $db->download_url('cdn_ip_v1', $_) for VPNDetection::Database::FORMATS;
+    is($origin->count, 2, 'while every published format still reaches the API');
+};
+
 done_testing();
