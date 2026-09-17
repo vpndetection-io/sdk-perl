@@ -52,7 +52,7 @@ subtest 'the licensed catalog answers the family shape' => sub {
         like($family->{standing}, qr/\A(?:expired|licensed|unlicensed)\z/,
             "$family->{base} carries a documented standing");
         # list answers the WHOLE catalogue, so an unlicensed family is a normal
-        # row with no licence type at all. Asserting one either way is what tells
+        # row with no license type at all. Asserting one either way is what tells
         # an undef apart from a value this client cannot read.
         if ($family->{standing} eq 'unlicensed') {
             ok(!defined $family->{license_type},
