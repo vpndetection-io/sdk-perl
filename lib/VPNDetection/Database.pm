@@ -14,6 +14,11 @@ our $VERSION = '3.2.0';
 use constant FORMATS => qw(csvgz mmdb);
 my %FORMAT = map { $_ => 1 } FORMATS;
 
+# The values `list` reports for standing and license_type, so a caller can branch
+# on each without spelling the list. license_type is undef for an unlicensed family.
+use constant STANDINGS => qw(expired licensed unlicensed);
+use constant LICENSE_TYPES => qw(evaluation standard redistribute);
+
 # The dataset FAMILIES your organization is licensed to download. A license
 # covers a family, while a download names one of its versions, so the ids the
 # download and checksum calls take come from each family's `versions`.
@@ -268,6 +273,19 @@ of that call.
 
 The formats a dataset is published in. A method taking a C<$format> croaks on
 anything else before it makes a request.
+
+=head2 STANDINGS
+
+    my @standings = VPNDetection::Database::STANDINGS;    # ('expired', 'licensed', 'unlicensed')
+
+Every C<standing> L</list> reports.
+
+=head2 LICENSE_TYPES
+
+    my @types = VPNDetection::Database::LICENSE_TYPES;    # ('evaluation', 'standard', 'redistribute')
+
+Every C<license_type> L</list> reports. A family you hold no license for carries
+C<undef> instead, which is not a member.
 
 =head2 list
 
