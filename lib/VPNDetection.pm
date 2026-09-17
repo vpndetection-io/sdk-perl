@@ -43,7 +43,7 @@ sub new {
     Carp::croak('VPNDetection->new: concurrency must be at least 1') if $concurrency < 1;
     Carp::croak('VPNDetection->new: retries cannot be negative') if $retries < 0;
     # Mojo arms a negative or non-numeric bound as a timer that fires at once, so
-    # every call would fail as a network error after reaching the server.
+    # every call would fail as a network error.
     my $timeout = defined $args{timeout} ? $args{timeout} : 30;
     Carp::croak('VPNDetection->new: timeout must be a number of seconds, 0 or more')
         unless Scalar::Util::looks_like_number($timeout) && $timeout >= 0;
