@@ -1,4 +1,4 @@
-# [<img src="https://s3.vpndetection.io/vpndetection-public/brand/mark.svg" alt="VPNDetection" width="24"/>](https://vpndetection.io/) VPNDetection Perl Client Library
+# [<img src="https://s3.vpndetection.io/vpndetection-public/brand/mark.svg" alt="VPNDetection" height="28"/>](https://vpndetection.io/) VPNDetection Perl Client Library
 
 [![CPAN](https://img.shields.io/cpan/v/VPNDetection.svg)](https://metacpan.org/dist/VPNDetection)
 [![license](https://img.shields.io/cpan/l/VPNDetection.svg)](LICENSE)
