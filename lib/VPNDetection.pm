@@ -60,7 +60,9 @@ sub new {
         base_url => _base_url($args{base_url}),
         concurrency => $concurrency,
         retries => $retries,
-        timeout => $timeout,
+        # Numified: Mojo arms a bound only when it is true, and '0.0', '00', '0e0'
+        # and '0 but true' are true strings, each a timer that fires at once.
+        timeout => 0 + $timeout,
         cache => $cache_size > 0 ? VPNDetection::Cache->new(
             max => $cache_size,
             ttl => defined $args{cache_ttl} ? $args{cache_ttl} : 3600,
@@ -494,7 +496,7 @@ sub _start_p {
     my ($self, $tx, $timeout) = @_;
     my $ua = $self->{ua};
     my $bound = $ua->request_timeout;
-    $ua->request_timeout(defined $timeout ? $timeout : $self->{timeout});
+    $ua->request_timeout(defined $timeout ? 0 + $timeout : $self->{timeout});
     my $promise = eval { $ua->start_p($tx) };
     my $failed = $@;
     $ua->request_timeout($bound);
