@@ -101,6 +101,8 @@ sub lookup_p {
     my ($self, $ip, %options) = @_;
     Carp::croak('lookup: expected an IP address') if !defined $ip || !length $ip;
     $self->_check_options('lookup', \%options, 'retries', 'timeout');
+    # Judged, cached and sent as the IPv4 address it carries, if it is mapped.
+    $ip = VPNDetection::Bogon::unmapped($ip);
 
     return Mojo::Promise->resolve(VPNDetection::Bogon::bogon_result($ip))
         if VPNDetection::Bogon::is_bogon($ip);
@@ -218,8 +220,11 @@ sub lookup_batch_p {
     # `limit` chunks in flight. Keyed by address rather than positional, so
     # duplicates in the input collapse to a single entry and the caller never has
     # to line two lists up.
+    # An IPv4-mapped address is sent as the address it carries, once however
+    # many of its spellings were asked, and answered under each one asked.
+    my @asked = grep { defined && length } @$ips;
     my %seen;
-    my @unique = grep { defined && length && !$seen{$_}++ } @$ips;
+    my @unique = grep { !$seen{$_}++ } map { VPNDetection::Bogon::unmapped($_) } @asked;
     my %answers;
     my @pending;
     my %joined;
@@ -253,8 +258,7 @@ sub lookup_batch_p {
         boarded => \%boarded,
     };
     $self->_dispatch($batch);
-    return $batch->{promise} unless %joined;
-    return Mojo::Promise->all(
+    my $done = %joined ? Mojo::Promise->all(
         $batch->{promise},
         map {
             my $ip = $_;
@@ -263,7 +267,10 @@ sub lookup_batch_p {
                 sub { $answers{$ip} = VPNDetection::Error->wrap(shift) },
             );
         } sort keys %joined,
-    )->then(sub { \%answers });
+    ) : $batch->{promise};
+    return $done->then(sub {
+        return { map { ($_ => $answers{ VPNDetection::Bogon::unmapped($_) }) } @asked };
+    });
 }
 
 # The licensed dataset downloads. Built per call rather than held, so the client
