@@ -29,7 +29,7 @@ docker run --rm \
     -e "VPNDETECTION_API_KEY=${VPNDETECTION_API_KEY:-}" \
     "$PERL_IMAGE" sh -euc "
         cpanm --notest --quiet --skip-satisfied --local-lib=/deps \
-            Mojolicious IO::Socket::SSL
+            Mojolicious IO::Socket::SSL Net::SSLeay
         cp -R /src /w
         cd /w
         perl Makefile.PL
