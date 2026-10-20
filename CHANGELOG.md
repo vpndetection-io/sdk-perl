@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 3.3.2 are described by their release commits.
 
+## 3.9.0 - 2026-10-20
+
+### Features
+
+- Add oauth->register, for RFC 7591 dynamic client registration ([`1248cc4`](https://github.com/vpndetection-io/sdk-perl/commit/1248cc46329a0f2afea4531e97025e8ee546de6d))
+
 ## 3.8.1 - 2026-10-20
 
 ### Fixes
