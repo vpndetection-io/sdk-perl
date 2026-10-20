@@ -25,8 +25,8 @@ docker run --rm \
     -v "$PWD:/src:ro" \
     -v "$DEPS_VOLUME:/deps" \
     -e "PERL5LIB=/deps/lib/perl5" \
-    -e "VPNDETECTION_LIVE=${VPNDETECTION_LIVE:-}" \
-    -e "VPNDETECTION_API_KEY=${VPNDETECTION_API_KEY:-}" \
+    -e VPNDETECTION_LIVE \
+    -e VPNDETECTION_API_KEY \
     "$PERL_IMAGE" sh -euc "
         cpanm --notest --quiet --skip-satisfied --local-lib=/deps \
             Mojolicious IO::Socket::SSL Net::SSLeay
