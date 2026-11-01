@@ -25,7 +25,7 @@ subtest 'a batch honors the per-call concurrency, measured as peak in flight' =>
     # either way.
     my $origin = VPNDetectionTest::Origin->new(sub {
         my ($c) = @_;
-        VPNDetectionTest::Origin::slow_json($c, VPNDetectionTest::Origin::batch_body($c), 0.05);
+        VPNDetectionTest::Origin::slow_json($c, VPNDetectionTest::Origin::batch_body($c), 0.2);
     });
     # Enough addresses for nine chunks of the batch endpoint's 1000, so a
     # concurrency of six has something to bound: one request per chunk, and only
