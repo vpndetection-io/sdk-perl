@@ -88,8 +88,8 @@ sub new {
     my $concurrency = defined $args{concurrency} ? $args{concurrency} : 8;
     my $retries = defined $args{retries} ? $args{retries} : 2;
     my $cache_size = defined $args{cache_size} ? $args{cache_size} : 10_000;
-    Carp::croak('VPNDetection->new: concurrency must be at least 1') if $concurrency < 1;
-    Carp::croak('VPNDetection->new: retries cannot be negative') if $retries < 0;
+    Carp::croak('VPNDetection->new: concurrency must be a whole number, 1 or more') unless _is_count($concurrency, 1);
+    Carp::croak('VPNDetection->new: retries must be a whole number, 0 or more') unless _is_count($retries, 0);
     # Mojo arms a negative or non-numeric bound as a timer that fires at once, so
     # every call would fail as a network error.
     my $timeout = defined $args{timeout} ? $args{timeout} : 30;
@@ -107,12 +107,16 @@ sub new {
     }
     Carp::croak('VPNDetection->new: api_key holds a control character')
         if defined $api_key && $api_key =~ /[\x00-\x1f\x7f]/;
+    # Mojo writes a header as bytes, so a character past U+00FF dies in the
+    # reactor and every call fails after its whole timeout with nothing sent.
+    Carp::croak('VPNDetection->new: api_key holds a character past U+00FF')
+        if defined $api_key && $api_key =~ /[^\x00-\xff]/;
 
     my $self = bless {
         api_key => $api_key,
         base_url => _base_url($args{base_url}),
-        concurrency => $concurrency,
-        retries => $retries,
+        concurrency => 0 + $concurrency,
+        retries => 0 + $retries,
         # Numified: Mojo arms a bound only when it is true, and '0.0', '00', '0e0'
         # and '0 but true' are true strings, each a timer that fires at once.
         timeout => 0 + $timeout,
@@ -275,7 +279,6 @@ sub lookup_batch_p {
     $self->_check_options('lookup_batch', \%options, 'retries', 'concurrency', 'timeout');
 
     my $limit = defined $options{concurrency} ? $options{concurrency} : $self->{concurrency};
-    Carp::croak('lookup_batch: concurrency must be at least 1') if $limit < 1;
     my $retries = defined $options{retries} ? $options{retries} : $self->{retries};
 
     # Bogons are answered locally and cached answers are reused; everything else
@@ -679,6 +682,19 @@ sub _check_options {
     my $timeout = $options->{timeout};
     Carp::croak("VPNDetection::$method: timeout must be a number of seconds, 0 or more")
         if defined $timeout && !(Scalar::Util::looks_like_number($timeout) && $timeout >= 0);
+    Carp::croak("VPNDetection::$method: retries must be a whole number, 0 or more")
+        if defined $options->{retries} && !_is_count($options->{retries}, 0);
+    Carp::croak("VPNDetection::$method: concurrency must be a whole number, 1 or more")
+        if defined $options->{concurrency} && !_is_count($options->{concurrency}, 1);
+}
+
+# A whole number from $least, or Inf for no limit. NaN compares false with
+# anything, so a NaN count retried a failing call for good and a NaN concurrency
+# put no chunk in flight, spinning the loop forever; a word reads as 0, and 1.5
+# as two retries.
+sub _is_count {
+    my ($n, $least) = @_;
+    return !ref $n && Scalar::Util::looks_like_number($n) && $n >= $least && $n == int $n;
 }
 
 sub _base_url {
@@ -729,8 +745,8 @@ Your API key. Without one a lookup answers C<ip> and C<is_vpn>, up to 1000 a day
 per source address; a free key adds Tor, relay, C<location> and C<asn>, and every
 paid plan answers every field. An empty or blank key is the same as none, and
 sends no C<Authorization> header. The key is trimmed, so one read from
-a file with its newline works; a key still holding a control character croaks
-here.
+a file with its newline works; a key still holding a control character, or a
+character past U+00FF, croaks here.
 
 =item base_url
 
@@ -746,14 +762,15 @@ How long an answer stays fresh, in seconds. Defaults to 3600.
 
 =item concurrency
 
-Requests in flight during a batch. Defaults to 8, and is overridable per call.
+Requests in flight during a batch, a whole number from 1. Defaults to 8, and is
+overridable per call.
 
 =item retries
 
-Attempts after a retryable failure. Defaults to 2, and is overridable per call.
-Each retry waits the server's C<Retry-After> when it sent one, otherwise a
-backoff of 250 ms that doubles per retry, up to 16 seconds. A C<Retry-After>
-longer than about 24.8 days is waited out on that backoff instead.
+Attempts after a retryable failure, a whole number from 0. Defaults to 2, and is
+overridable per call. Each retry waits the server's C<Retry-After> when it sent
+one, otherwise a backoff of 250 ms that doubles per retry, up to 16 seconds. A
+C<Retry-After> longer than about 24.8 days is waited out on that backoff instead.
 
 =item timeout
 
