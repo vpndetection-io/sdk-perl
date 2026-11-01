@@ -3,8 +3,10 @@ use warnings;
 
 use lib 't/lib';
 
+use Data::Dumper ();
 use Encode ();
 use File::Temp ();
+use Storable ();
 use Mojo::IOLoop;
 use Mojo::JSON ();
 use Mojo::UserAgent;
@@ -734,7 +736,10 @@ subtest 'a member of the wrong type or a null is a retried server_error' => sub 
     my $entitlement = {
         org_id => 'o', apikey => { id => 'k', expires => undef, allowed_cidrs => [] },
         plan => { key => 'max', tier => 'max' },
-        usage => { requests => 1, quota => 10, hard_limit => undef, window_start => 's', window_end => 'e' },
+        usage => {
+            requests => 1, quota => 10, hard_limit => undef,
+            window_start => '2026-09-04T00:00:00Z', window_end => '2026-09-05T00:00:00Z',
+        },
     };
     my $lookup = { ip => '9.9.9.9', is_vpn => \1 };
     my @cases = (
@@ -1009,6 +1014,115 @@ subtest 'a key holding a character past U+00FF is refused where it is set' => su
         $client->lookup('9.9.9.9');
         my ($request) = $origin->requests;
         is(unpack('H*', $request->{headers}{Authorization}), unpack('H*', "Bearer $case->[1]"), 'sent as its bytes');
+    }
+};
+
+# Through 3.10.1 a date member was checked as a string alone, so every value
+# below came back as served: words, 30 February, 24:00, a time with no offset,
+# a date where a date-time is due and the reverse, a trailing newline, which
+# Perl's `$` lets through, and another script's digits, which its `\d` takes.
+subtest 'a date or date-time member that is not RFC 3339 is a retried server_error' => sub {
+    my $arabic = join '', map { chr(0x660 + $_) } 2, 0, 2, 6;
+    my %values = (
+        date => {
+            bad => ['x', 'tomorrow', 'monday', '2026-02-30', '2026-11-31', '2100-02-29', '2026-13-01', '2026-10-00',
+                '2026-10-5', '20261005', '2026-W40-1', '2026-10-05T10:00:00Z', "2026-10-05\n", ' 2026-10-05',
+                "$arabic-10-05", ''],
+            good => ['2026-10-05', '2024-02-29', '2000-02-29'],
+        },
+        'date-time' => {
+            bad => ['x', 'tomorrow', '2026-02-30T10:00:00Z', '2026-10-05T24:00:00Z', '2026-10-05T10:60:00Z',
+                '2026-10-05T10:00:60Z', '2026-10-05T10:00:00', '2026-10-05', '2026-10-05T10:00:00+05',
+                '2026-10-05T10:00Z', '2026-10-05T10:00:00+0500', '2026-10-05T10:00:00+24:00',
+                '2026-10-05T10:00:00+05:60', "2026-10-05T10:00:00Z\n", '2026-10-05T1:00:00Z',
+                '2026-10-05T10:00:00,5Z', '2026-10-05 10:00:00Z', "$arabic-10-05T10:00:00Z", '1759658400'],
+            good => ['2026-10-05T10:00:00Z', '2026-10-05t10:00:00z', '2026-10-05T10:00:00.123456789Z',
+                '2026-10-05T10:00:00+05:30', '2026-10-05T10:00:00-00:00'],
+        },
+    );
+    my %class = (provider => 'p', confidence => 'high', last_seen => '2026-10-05');
+    my %proxy = (provider => 'p', first_seen => '2026-10-05', last_seen => '2026-10-05');
+    my $lookup = {
+        ip => '9.9.9.9', is_vpn => \1,
+        vpn => { provider => 'p', last_seen => '2026-10-05' },
+        (map { ($_ => {%class}) } qw(hosting relay tor cdn)),
+        (map { ($_ => {%proxy}) } qw(resproxy dcproxy mobproxy)),
+        pubproxy => { entry => \1, last_seen => '2026-10-05' },
+    };
+    my %fixtures = (
+        lookup => $lookup, my_ip => $lookup,
+        lookup_batch => { results => { '9.9.9.9' => $lookup }, errors => {} },
+        my_entitlement => {
+            org_id => 'o', apikey => { id => 'k', expires => '2026-10-05T10:00:00Z', allowed_cidrs => [] },
+            plan => { key => 'max', tier => 'max' },
+            usage => {
+                requests => 1, quota => 10, hard_limit => undef,
+                window_start => '2026-10-05T10:00:00Z', window_end => '2026-10-05T10:00:00Z',
+            },
+        },
+        list => { databases => [{
+            base => 'vpn_ip', name => 'VPN IP', summary => 's', license_type => 'standard',
+            (map { ($_ => '2026-10-05T10:00:00Z') } qw(starts expires renews_at notice_due_at)),
+            in_term => \1, standing => 'licensed', open => \0,
+            versions => [{ id => 'vpn_ip_v1', version => 1, formats => [{ format => 'mmdb', bytes => 1 }] }],
+        }] },
+        metadata => { id => 'vpn_ip_v1', updated => '2026-10-05', entries => 1, schema => {} },
+        downloads => { downloads => [{
+            dataset_id => 'vpn_ip_v1', format => 'mmdb', outcome => 'ok', sample => \0, open => \0,
+            created => '2026-10-05T10:00:00Z',
+        }] },
+    );
+    my @members = (
+        (map { [lookup => date => [$_, 'last_seen']] } qw(vpn hosting relay tor cdn resproxy dcproxy mobproxy pubproxy)),
+        (map { [lookup => date => [$_, 'first_seen']] } qw(resproxy dcproxy mobproxy)),
+        [my_ip => date => ['vpn', 'last_seen']],
+        [lookup_batch => date => ['results', '9.9.9.9', 'pubproxy', 'last_seen']],
+        [my_entitlement => 'date-time' => ['apikey', 'expires']],
+        (map { [my_entitlement => 'date-time' => ['usage', $_]] } qw(window_start window_end)),
+        (map { [list => 'date-time' => ['databases', 0, $_]] } qw(starts expires renews_at notice_due_at)),
+        [metadata => date => ['updated']],
+        [downloads => 'date-time' => ['downloads', 0, 'created']],
+    );
+    my $body;
+    my $origin = VPNDetectionTest::Origin->new(sub { $_[0]->render(json => $body) });
+    # Each case is sent once, and one per call with a retry, since every refused
+    # case costs a retry's backoff.
+    my $client;
+    my %calls = (
+        lookup => sub { $client->lookup('9.9.9.9') },
+        my_ip => sub { $client->my_ip },
+        lookup_batch => sub {
+            my $answer = $client->lookup_batch(['9.9.9.9'])->{'9.9.9.9'};
+            die $answer if $answer->isa('VPNDetection::Error');
+            return $answer;
+        },
+        my_entitlement => sub { $client->my_entitlement },
+        list => sub { $client->database->list },
+        metadata => sub { $client->database->metadata('vpn_ip_v1') },
+        downloads => sub { $client->database->downloads },
+    );
+    my $shown = sub { Data::Dumper->new([shift])->Useqq(1)->Terse(1)->Indent(0)->Dump };
+    my %retried;
+    for my $member (@members) {
+        my ($call, $kind, $path) = @$member;
+        my $at = join '.', @$path;
+        for my $value (@{ $values{$kind}{bad} }, @{ $values{$kind}{good} }) {
+            my $retries = $retried{$call}++ ? 0 : 1;
+            $client = VPNDetection->new(base_url => $origin->url, api_key => 'k', retries => $retries, cache_size => 0);
+            $body = Storable::dclone($fixtures{$call});
+            my $node = $body;
+            $node = ref $node eq 'ARRAY' ? $node->[$_] : $node->{$_} for @$path[0 .. $#$path - 1];
+            $node->{ $path->[-1] } = $value;
+            $origin->reset;
+            my $good = grep { $_ eq $value } @{ $values{$kind}{good} };
+            my $answer = eval { $calls{$call}->() };
+            my $error = $@;
+            my $outcome = $answer ? 'read' : ref $error && $error->can('kind') ? $error->kind . ' ' . ($error->status // '') : "$error";
+            # A batch entry is its address's error alone, so its chunk is not retried.
+            my $sends = $good || $call eq 'lookup_batch' ? 1 : 1 + $retries;
+            is("$outcome after $sends", ($good ? 'read' : 'server_error 200') . " after " . $origin->count,
+                "$call, $at of " . $shown->($value) . ($good ? ': read' : ': refused and retried'));
+        }
     }
 };
 

@@ -41,17 +41,18 @@ my %OPTIONS = map { $_ => 1 } qw(
 
 # The shapes of the answers, from the pinned spec's schemas: a member it requires
 # and never sends as null is required, a nullable or optional one may be absent
-# or null, and every one present has the spec's type at every depth. A detail is
-# as optional as the plan makes it, so `{}` is one.
-my $VPN_DETAIL = [fields => [map { [$_ => ['string']] } qw(provider last_seen confidence method)]];
-my $CLASS_DETAIL = [fields => [map { [$_ => ['string']] } qw(provider confidence last_seen)]];
+# or null, and every one present has the spec's type at every depth, a `date` or
+# `date-time` RFC 3339's on a day that exists. A detail is as optional as the plan
+# makes it, so `{}` is one.
+my $VPN_DETAIL = [fields => [(map { [$_ => ['string']] } qw(provider confidence method)), [last_seen => ['date']]]];
+my $CLASS_DETAIL = [fields => [(map { [$_ => ['string']] } qw(provider confidence)), [last_seen => ['date']]]];
 my $PROXY_DETAIL = [fields => [
-    (map { [$_ => ['string']] } qw(provider first_seen last_seen)),
+    [provider => ['string']], (map { [$_ => ['date']] } qw(first_seen last_seen)),
     (map { [$_ => ['integer']] } qw(hits hits_days_pct providers_num)),
 ]];
 my $PUBPROXY_DETAIL = [fields => [
     [entry => ['boolean']], [exit => ['boolean']], [protocols => [list => ['string']]],
-    [num_ports => ['integer']], [num_proxies => ['integer']], [last_seen => ['string']],
+    [num_ports => ['integer']], [num_proxies => ['integer']], [last_seen => ['date']],
     [last_usable => ['string']],
 ]];
 # Where the address is and the AS announcing it carry every member whenever they
@@ -72,11 +73,11 @@ our $BATCH_ERROR = [fields => [[status => ['integer'], 1], [error => ['string'],
 our $BATCH = [fields => [[results => [map_of => ['any']], 1], [errors => [map_of => ['any']], 1]]];
 our $ENTITLEMENT = [fields => [
     [org_id => ['string'], 1],
-    [apikey => [fields => [[id => ['string'], 1], [expires => ['string']], [allowed_cidrs => [list => ['string']], 1]]], 1],
+    [apikey => [fields => [[id => ['string'], 1], [expires => ['date-time']], [allowed_cidrs => [list => ['string']], 1]]], 1],
     [plan => [fields => [[key => ['string'], 1], [tier => ['string'], 1]]], 1],
     [usage => [fields => [
         [requests => ['integer'], 1], [quota => ['integer'], 1], [hard_limit => ['integer']],
-        [window_start => ['string'], 1], [window_end => ['string'], 1],
+        [window_start => ['date-time'], 1], [window_end => ['date-time'], 1],
     ]], 1],
 ]];
 
@@ -500,6 +501,10 @@ sub _nonconforming {
     if ($kind eq 'string') {
         return VPNDetection::Oauth::_is_string($value) ? undef : $wrong->();
     }
+    if ($kind eq 'date' || $kind eq 'date-time') {
+        return VPNDetection::Oauth::_is_string($value) && _is_rfc3339($kind, $value) ? undef
+            : 'the API answered ' . join('.', @$at) . ' that is no RFC 3339 ' . $kind;
+    }
     if ($kind eq 'integer') {
         return !ref $value && !VPNDetection::Oauth::_is_string($value) && $value =~ /\A-?[0-9]+\z/
             ? undef : $wrong->();
@@ -537,6 +542,33 @@ sub _nonconforming {
         return $w if defined $w;
     }
     return undef;
+}
+
+# RFC 3339's `full-date`, or its `date-time` with the `T` and `Z` in either case,
+# an hour below 24, a minute and second below 60 and an offset of at most 23:59,
+# on a day its month has. ASCII digits and `\z`, since Perl's `\d` takes any
+# script's digits and `$` a trailing newline.
+my $FULL_DATE = qr/\A([0-9]{4})-([0-9]{2})-([0-9]{2})\z/;
+my $DATE_TIME = qr/\A([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.[0-9]+)?
+    (?:[Zz]|[+-]([0-9]{2}):([0-9]{2}))\z/x;
+
+sub _is_rfc3339 {
+    my ($kind, $value) = @_;
+    if ($kind eq 'date') {
+        my @date = $value =~ $FULL_DATE or return 0;
+        return _is_day(@date);
+    }
+    my ($year, $month, $day, $hour, $minute, $second, $off_hour, $off_minute) = $value =~ $DATE_TIME
+        or return 0;
+    return _is_day($year, $month, $day) && $hour < 24 && $minute < 60 && $second < 60
+        && (!defined $off_hour || ($off_hour < 24 && $off_minute < 60));
+}
+
+sub _is_day {
+    my ($year, $month, $day) = @_;
+    return 0 if $month < 1 || $month > 12 || $day < 1;
+    my $leap = ($year % 4 == 0 && $year % 100 != 0) || $year % 400 == 0;
+    return $day <= (31, $leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)[$month - 1];
 }
 
 sub _get_p {
