@@ -15,7 +15,7 @@ use VPNDetectionIntegration::Tiers qw(max_rung skip_for);
 #
 # The transfer is budgeted before it starts. `metadata` publishes a size per
 # format, and that size is checked against the ceiling below FIRST, so a mistaken
-# dataset id can never quietly pull one of the gigabyte datasets through CI.
+# dataset ID can never quietly pull one of the gigabyte datasets through CI.
 
 # The max organization licenses cdn_ip for license_type, and at ~10 KB it is
 # the only dataset small enough to move in CI.
@@ -25,7 +25,7 @@ my $FORMAT = 'csvgz';
 # tripping it means the suite is pointed somewhere unintended, which is exactly
 # when a transfer must not go ahead.
 my $CEILING = 8 * 1024 * 1024;
-# A real catalog id the max organization holds no license for.
+# A real catalog ID the max organization holds no license for.
 my $UNLICENSED = 'hosting_ip_v1';
 
 my $reason = skip_for(max_rung());
@@ -42,7 +42,7 @@ subtest 'the licensed catalog answers the family shape' => sub {
     ok(@$datasets, 'the catalogue is not empty');
     my @licensed;
     for my $family (@$datasets) {
-        # A license covers a FAMILY, and the ids a download takes hang off
+        # A license covers a FAMILY, and the IDs a download takes hang off
         # `versions`. Before the spec was corrected this list did not exist, so
         # list could not tell a caller what to download.
         ok(length($family->{base} || ''), 'a licensed family carries a base');

@@ -62,7 +62,7 @@ sub from_response {
     return $class->new(kind => 'forbidden', message => $message, status => $status)
         if $status == 403;
     # Any other 4xx is a CLIENT error. Falling through to the server_error
-    # default would make it retryable, so a bad dataset id would be retried
+    # default would make it retryable, so a bad dataset ID would be retried
     # twice before failing. Only 5xx and transport failures are worth a retry.
     return $class->new(kind => 'bad_request', message => $message, status => $status)
         if $status < 500;
