@@ -257,7 +257,7 @@ sub _body_p {
 
 sub _assert_dataset {
     my ($method, $id, $format) = @_;
-    Carp::croak("database->$method: expected a dataset id") if !defined $id || !length $id;
+    Carp::croak("database->$method: expected a dataset ID") if !defined $id || !length $id;
     Carp::croak("database->$method: expected a format") if !defined $format || !length $format;
     Carp::croak("database->$method: '$format' is not a published format; expected one of "
         . join(', ', FORMATS)) unless $FORMAT{$format};
