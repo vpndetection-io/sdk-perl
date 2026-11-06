@@ -360,7 +360,7 @@ itself:
         ],
     }
 
-The id every other method takes is C<< $version->{id} >>, never C<< $family->{base} >>.
+The ID every other method takes is C<< $version->{id} >>, never C<< $family->{base} >>.
 
 =head2 metadata($id)
 
