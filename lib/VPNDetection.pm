@@ -789,8 +789,8 @@ before writing an C<if>.
 =item api_key
 
 Your API key. Without one a lookup answers C<ip>, C<is_vpn>, the Tor and relay
-members, C<location> and C<asn>, up to 60 a minute from each address, and a batch
-is refused as C<unauthorized>; a free key adds every other flag, and every paid
+members, C<location> and C<asn>, with no daily or monthly cap, and a batch is
+refused as C<unauthorized>; a free key adds every other flag, and every paid
 plan answers every field. An empty or blank key is the same as none, and
 sends no C<Authorization> header. The key is trimmed, so one read from
 a file with its newline works; a key still holding a control character, or a
