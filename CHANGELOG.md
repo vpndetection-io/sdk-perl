@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 3.3.2 are described by their release commits.
 
+## 3.12.0 - 2026-11-11
+
+### Features
+
+- Re-pin the spec to 2026.11.11: a lookup without a key answers more ([`b2a1f78`](https://github.com/vpndetection-io/sdk-perl/commit/b2a1f78ae59f0b636463bf54fb7318bc5506304a))
+
 ## 3.11.1 - 2026-11-09
 
 ### Fixes
