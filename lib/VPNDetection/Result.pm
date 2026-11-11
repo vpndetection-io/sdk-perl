@@ -21,9 +21,9 @@ our @LOCATION = qw(
     currency_symbol flag_emoji flag_unicode
 );
 our @ASN = qw(asn name domain type prefix);
-# On a Trial key's answers only, and so never on a bogon's: false while the
-# organization's 100 full answers for the UTC day last, true once the answer is
-# Unlimited's.
+# On answers to a key on the free plan only, and so never on a bogon's: false
+# while its organization's daily trial lasts (every field for the first 100
+# lookups each UTC day), true once the answer has Unlimited's.
 our @MARKERS = qw(trial_expired);
 
 my %KNOWN = map { $_ => 1 } 'ip', 'is_bogon', @FLAGS, @DETAILS, @OBJECTS, @MARKERS;
@@ -133,7 +133,7 @@ than served.
 =head2 is_hosting, is_relay, is_tor, is_cdn, is_resproxy, is_dcproxy, is_mobproxy, is_pubproxy
 
 The tier-gated flags: C<1>, C<0>, or C<undef> when your plan omits the field.
-On the Unlimited tier, with a key or without one, C<is_tor> and C<is_relay> come
+On Unlimited, the free plan, with a key or without one, C<is_tor> and C<is_relay> come
 back beside C<is_vpn>; every paid plan answers every flag. C<is_pubproxy> is whether a
 public proxy, one anyone can connect through, listens on the address or sends
 its traffic out from it.
@@ -159,9 +159,9 @@ whenever the object is: an empty string, and C<asn> 0, where nothing is known.
 
 =head2 trial_expired
 
-On a Trial key's answers only: C<0> while the organization's 100 full answers
-for the UTC day last, C<1> once the answer is Unlimited's, and C<undef> on any
-other answer.
+On answers to a key on the free plan only: C<0> while its organization's daily
+trial lasts (every field for the first 100 lookups each UTC day), C<1> once the
+answer has Unlimited's, and C<undef> on any other answer.
 
 =head2 has($field)
 

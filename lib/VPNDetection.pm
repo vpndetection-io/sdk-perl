@@ -788,8 +788,9 @@ before writing an C<if>.
 
 =item api_key
 
-Your API key. Without one a lookup is on the Unlimited tier: C<ip>, C<is_vpn>,
-the Tor and relay members, C<location> and C<asn>, with no daily or monthly cap.
+Your API key. Without one a lookup is on Unlimited, the free plan: C<ip>,
+C<is_vpn>, the Tor and relay members, C<location> and C<asn>, with no daily or
+monthly cap.
 Every paid plan answers every field, and a batch needs one. An empty or blank key is the same as none, and
 sends no C<Authorization> header. The key is trimmed, so one read from
 a file with its newline works; a key still holding a control character, or a
@@ -878,7 +879,7 @@ without an API key gets an unauthorized error rather than a partial one.
 
 Usage counts against the allowance window - on a paid plan the anniversary of
 the subscription, not the calendar month and not the billing period, and on a
-trial key the UTC day - and it is the same number a lookup is gated on.
+free plan the UTC day - and it is the same number a lookup is gated on.
 C<hard_limit> is C<undef> when we never stop serving, which is not the same as a
 limit of zero.
 
@@ -898,8 +899,8 @@ each chunk.
 There is no cap on how many addresses one call takes: everything not answered
 locally goes out in chunks of up to 1000, the most one request carries. The batch
 endpoint needs a paid plan: without a key every address sent to it carries an
-C<unauthorized> L<VPNDetection::Error>, and a trial key's batch of two or more a
-C<bad_request> one (HTTP 402).
+C<unauthorized> L<VPNDetection::Error>, and a free-plan key's batch of two or
+more a C<bad_request> one (HTTP 402).
 
 Perl hashes have no insertion order, so iterate your own list if order matters:
 

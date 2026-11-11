@@ -46,8 +46,8 @@ subtest 'each tier serves a superset of the tier below' => sub {
 
     my $below;
     for my $rung (observable_rungs()) {
-        # trial_expired marks a trial key's answers, and no other: it is not a
-        # field a tier serves.
+        # trial_expired marks a free-plan key's answers, and no other: it is not
+        # a field a tier serves.
         my @fields = sort grep { $_ ne 'trial_expired' } keys %{ answer_for($rung)->{result}->raw };
         note("$rung->{tier}: " . scalar(@fields) . ' fields');
         if ($below) {
@@ -66,19 +66,19 @@ subtest 'each tier serves a superset of the tier below' => sub {
     }
 };
 
-subtest "a trial key's answer is a paid one or Unlimited's, and says which" => sub {
+subtest "a free-plan key's answer is a paid one or Unlimited's, and says which" => sub {
     plan skip_all => skip_for(trial_rung()) if skip_for(trial_rung());
 
     my $raw = answer_for(trial_rung())->{result}->raw;
 
-    ok(exists $raw->{trial_expired}, 'a trial key answers trial_expired');
+    ok(exists $raw->{trial_expired}, 'a free-plan key answers trial_expired');
     # The organization's first 100 lookups of the UTC day are answered in full,
     # and the rest as Unlimited's: which half a run sees depends on the day.
     is(exists $raw->{is_hosting} ? 1 : 0, $raw->{trial_expired} ? 0 : 1,
         'is_hosting is served exactly while the day lasts');
 };
 
-subtest "a trial key's batch of two is refused as a bad request, once" => sub {
+subtest "a free-plan key's batch of two is refused as a bad request, once" => sub {
     plan skip_all => skip_for(trial_rung()) if skip_for(trial_rung());
     my @paths;
     my $client = client_for(trial_rung(), sub { push @paths, shift->{path} });
@@ -87,7 +87,7 @@ subtest "a trial key's batch of two is refused as a bad request, once" => sub {
 
     for my $ip (PROBE, '8.8.8.8') {
         my $refused = $answers->{$ip};
-        isa_ok($refused, 'VPNDetection::Error', "$ip in a trial key's batch of two");
+        isa_ok($refused, 'VPNDetection::Error', "$ip in a free-plan key's batch of two");
         is($refused->kind, 'bad_request', 'is refused as a bad request');
         is($refused->status, 402, 'with a 402');
         ok(!$refused->retryable, 'which is not retryable');
@@ -95,7 +95,7 @@ subtest "a trial key's batch of two is refused as a bad request, once" => sub {
     is_deeply(\@paths, ['/batch'], 'one request, never retried');
 };
 
-subtest "a trial key's batch of one is answered" => sub {
+subtest "a free-plan key's batch of one is answered" => sub {
     plan skip_all => skip_for(trial_rung()) if skip_for(trial_rung());
 
     my $answer = client_for(trial_rung())->lookup_batch([PROBE])->{+PROBE};
