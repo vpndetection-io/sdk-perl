@@ -128,8 +128,8 @@ than served.
 =head2 is_hosting, is_relay, is_tor, is_cdn, is_resproxy, is_dcproxy, is_mobproxy, is_pubproxy
 
 The tier-gated flags: C<1>, C<0>, or C<undef> when your plan omits the field.
-Without a key only C<is_vpn> comes back; a free key adds C<is_tor> and
-C<is_relay>, and every paid plan answers every flag. C<is_pubproxy> is whether a
+Without a key C<is_tor> and C<is_relay> come back beside C<is_vpn>; any key, a
+free one included, adds every other flag. C<is_pubproxy> is whether a
 public proxy, one anyone can connect through, listens on the address or sends
 its traffic out from it.
 
@@ -146,7 +146,7 @@ proxy on the address was answered.
 =head2 location, asn
 
 Where the address is and the AS announcing it, as plain hash references, on every
-keyed answer and C<undef> without a key. C<location> carries C<continent>,
+answer, with or without a key. C<location> carries C<continent>,
 C<continent_name>, C<country>, C<country_name>, C<timezone>, C<currency_code>,
 C<currency_name>, C<currency_symbol>, C<flag_emoji> and C<flag_unicode>; C<asn>
 carries C<asn>, C<name>, C<domain>, C<type> and C<prefix>. Every key is present

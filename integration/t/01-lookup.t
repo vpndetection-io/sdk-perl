@@ -9,7 +9,7 @@ use VPNDetection;
 use VPNDetectionIntegration::Staging qw(
     %MEMBERS PROBE STAGING answer_for assert_served_by_tier client_for ladder_skip
 );
-use VPNDetectionIntegration::Tiers qw(@RUNGS observable_rungs skip_for unauth_rung);
+use VPNDetectionIntegration::Tiers qw(@RUNGS free_rung observable_rungs skip_for unauth_rung);
 
 # The published distribution looking addresses up against the staging API.
 #
@@ -21,7 +21,7 @@ use VPNDetectionIntegration::Tiers qw(@RUNGS observable_rungs skip_for unauth_ru
 # than false; a populated detail object carries its documented keys; an empty one
 # means its flag is false.
 
-subtest 'an unauthenticated lookup answers ip and is_vpn' => sub {
+subtest 'a lookup without a key answers ip and is_vpn at the least' => sub {
     my $fixture = answer_for(unauth_rung());
 
     is($fixture->{result}->raw->{ip}, PROBE, 'the wire answered about the address asked for');
@@ -115,11 +115,30 @@ subtest 'a bogon is answered without touching the network' => sub {
     }
 };
 
+subtest 'a batch without a key is refused once, and its bogon still answered' => sub {
+    my @paths;
+    my $client = client_for(unauth_rung(), sub { push @paths, shift->{path} });
+
+    my $answers = $client->lookup_batch([PROBE, '10.0.0.1']);
+
+    is($answers->{'10.0.0.1'}->is_bogon, 1, 'the private address was answered locally');
+    my $refused = $answers->{+PROBE};
+    isa_ok($refused, 'VPNDetection::Error', 'a batch without a key');
+    is($refused->kind, 'unauthorized', 'is refused as unauthorized');
+    is($refused->status, 401, 'with a 401');
+    ok(!$refused->retryable, 'which is not retryable');
+    is_deeply(\@paths, ['/batch'], 'one request, never retried');
+};
+
 subtest 'a batch collapses duplicates and keeps bogons off the wire' => sub {
-    my %asked;
-    my $client = client_for(unauth_rung(), sub {
+    # A batch needs a key, and the free one is the cheapest that has it.
+    plan skip_all => skip_for(free_rung()) if skip_for(free_rung());
+    my (%asked, $carried);
+    $carried = 1;
+    my $client = client_for(free_rung(), sub {
         my $fact = shift;
         $asked{ join ' ', $fact->{path}, join ',', @{ $fact->{ips} } } = 1;
+        $carried &&= $fact->{carried_key};
     });
 
     my @wanted = (PROBE, '8.8.8.8', '10.0.0.1');
@@ -130,6 +149,7 @@ subtest 'a batch collapses duplicates and keeps bogons off the wire' => sub {
     # staging cannot read as a failure to deduplicate.
     is_deeply([keys %asked], ['/batch ' . PROBE . ',8.8.8.8'],
         'and only the two servable ones reached the API, in one POST /batch');
+    ok($carried, 'the free key reached the wire');
     is($answers->{'10.0.0.1'}->is_bogon, 1, 'the private address was answered locally');
     for my $ip (PROBE, '8.8.8.8') {
         isa_ok($answers->{$ip}, 'VPNDetection::Result', $ip);

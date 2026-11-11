@@ -5,7 +5,7 @@ use warnings;
 
 use Exporter 'import';
 
-our @EXPORT_OK = qw(@RUNGS unauth_rung max_rung key_for skip_for observable_rungs);
+our @EXPORT_OK = qw(@RUNGS unauth_rung free_rung max_rung key_for skip_for observable_rungs);
 
 # Which plan tiers this run can observe, and the secret each one needs.
 #
@@ -38,6 +38,11 @@ our @RUNGS = (
 
 sub unauth_rung {
     return $RUNGS[0];
+}
+
+# The cheapest rung a batch can run on: POST /batch needs a key.
+sub free_rung {
+    return $RUNGS[1];
 }
 
 sub max_rung {

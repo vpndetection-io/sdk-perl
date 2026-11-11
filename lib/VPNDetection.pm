@@ -788,9 +788,10 @@ before writing an C<if>.
 
 =item api_key
 
-Your API key. Without one a lookup answers C<ip> and C<is_vpn>, up to 1000 a day
-per source address; a free key adds Tor, relay, C<location> and C<asn>, and every
-paid plan answers every field. An empty or blank key is the same as none, and
+Your API key. Without one a lookup answers C<ip>, C<is_vpn>, the Tor and relay
+members, C<location> and C<asn>, up to 60 a minute from each address, and a batch
+is refused as C<unauthorized>; a free key adds every other flag, and every paid
+plan answers every field. An empty or blank key is the same as none, and
 sends no C<Authorization> header. The key is trimmed, so one read from
 a file with its newline works; a key still holding a control character, or a
 character past U+00FF, croaks here.
@@ -895,7 +896,9 @@ C<concurrency> and C<timeout> are the per-call options, and the timeout bounds
 each chunk.
 
 There is no cap on how many addresses one call takes: everything not answered
-locally goes out in chunks of up to 1000, the most one request carries.
+locally goes out in chunks of up to 1000, the most one request carries. The batch
+endpoint needs an API key, a free one included: without one, every address sent
+to it carries an C<unauthorized> L<VPNDetection::Error>.
 
 Perl hashes have no insertion order, so iterate your own list if order matters:
 

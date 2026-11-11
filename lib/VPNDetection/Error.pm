@@ -187,8 +187,8 @@ One of C<bad_request>, C<unauthorized>, C<forbidden>, C<rate_limited>,
 C<quota_exceeded>, C<server_error> or C<network>.
 
 C<rate_limited> and C<quota_exceeded> both arrive as HTTP 429 and are not the
-same thing. A rate limit is the API protecting itself, carries C<Retry-After>,
-and retrying works. A spent quota carries no such header, and retrying will not
+same thing. A rate limit is the API protecting itself, or a lookup without a key
+past 60 a minute, carries C<Retry-After>, and retrying works. A spent quota carries no such header, and retrying will not
 help until the window rolls over or the limit is raised. The header is the only
 thing that separates them.
 
