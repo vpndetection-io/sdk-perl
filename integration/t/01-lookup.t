@@ -9,7 +9,7 @@ use VPNDetection;
 use VPNDetectionIntegration::Staging qw(
     %MEMBERS PROBE STAGING answer_for assert_served_by_tier client_for ladder_skip
 );
-use VPNDetectionIntegration::Tiers qw(@RUNGS free_rung observable_rungs skip_for unauth_rung);
+use VPNDetectionIntegration::Tiers qw(@RUNGS observable_rungs paid_rung skip_for trial_rung unauth_rung);
 
 # The published distribution looking addresses up against the staging API.
 #
@@ -46,7 +46,9 @@ subtest 'each tier serves a superset of the tier below' => sub {
 
     my $below;
     for my $rung (observable_rungs()) {
-        my @fields = sort keys %{ answer_for($rung)->{result}->raw };
+        # trial_expired marks a trial key's answers, and no other: it is not a
+        # field a tier serves.
+        my @fields = sort grep { $_ ne 'trial_expired' } keys %{ answer_for($rung)->{result}->raw };
         note("$rung->{tier}: " . scalar(@fields) . ' fields');
         if ($below) {
             my %served = map { $_ => 1 } @fields;
@@ -60,8 +62,46 @@ subtest 'each tier serves a superset of the tier below' => sub {
                     "$rung->{tier} answers more fields than $below->{tier}");
             }
         }
-        $below = { tier => $rung->{tier}, fields => \@fields };
+        $below = { tier => $rung->{tier}, fields => \@fields } unless $rung->{tier} eq 'trial';
     }
+};
+
+subtest "a trial key's answer is a paid one or Unlimited's, and says which" => sub {
+    plan skip_all => skip_for(trial_rung()) if skip_for(trial_rung());
+
+    my $raw = answer_for(trial_rung())->{result}->raw;
+
+    ok(exists $raw->{trial_expired}, 'a trial key answers trial_expired');
+    # The organization's first 100 lookups of the UTC day are answered in full,
+    # and the rest as Unlimited's: which half a run sees depends on the day.
+    is(exists $raw->{is_hosting} ? 1 : 0, $raw->{trial_expired} ? 0 : 1,
+        'is_hosting is served exactly while the day lasts');
+};
+
+subtest "a trial key's batch of two is refused as a bad request, once" => sub {
+    plan skip_all => skip_for(trial_rung()) if skip_for(trial_rung());
+    my @paths;
+    my $client = client_for(trial_rung(), sub { push @paths, shift->{path} });
+
+    my $answers = $client->lookup_batch([PROBE, '8.8.8.8']);
+
+    for my $ip (PROBE, '8.8.8.8') {
+        my $refused = $answers->{$ip};
+        isa_ok($refused, 'VPNDetection::Error', "$ip in a trial key's batch of two");
+        is($refused->kind, 'bad_request', 'is refused as a bad request');
+        is($refused->status, 402, 'with a 402');
+        ok(!$refused->retryable, 'which is not retryable');
+    }
+    is_deeply(\@paths, ['/batch'], 'one request, never retried');
+};
+
+subtest "a trial key's batch of one is answered" => sub {
+    plan skip_all => skip_for(trial_rung()) if skip_for(trial_rung());
+
+    my $answer = client_for(trial_rung())->lookup_batch([PROBE])->{+PROBE};
+
+    isa_ok($answer, 'VPNDetection::Result', PROBE);
+    ok(exists $answer->raw->{trial_expired}, 'and says whether the trial day is spent');
 };
 
 subtest 'a field a higher tier serves is absent on a lower one, never false' => sub {
@@ -131,11 +171,11 @@ subtest 'a batch without a key is refused once, and its bogon still answered' =>
 };
 
 subtest 'a batch collapses duplicates and keeps bogons off the wire' => sub {
-    # A batch needs a key, and the free one is the cheapest that has it.
-    plan skip_all => skip_for(free_rung()) if skip_for(free_rung());
+    # A batch needs a paid plan, and starter is the cheapest.
+    plan skip_all => skip_for(paid_rung()) if skip_for(paid_rung());
     my (%asked, $carried);
     $carried = 1;
-    my $client = client_for(free_rung(), sub {
+    my $client = client_for(paid_rung(), sub {
         my $fact = shift;
         $asked{ join ' ', $fact->{path}, join ',', @{ $fact->{ips} } } = 1;
         $carried &&= $fact->{carried_key};
@@ -149,7 +189,7 @@ subtest 'a batch collapses duplicates and keeps bogons off the wire' => sub {
     # staging cannot read as a failure to deduplicate.
     is_deeply([keys %asked], ['/batch ' . PROBE . ',8.8.8.8'],
         'and only the two servable ones reached the API, in one POST /batch');
-    ok($carried, 'the free key reached the wire');
+    ok($carried, 'the paid key reached the wire');
     is($answers->{'10.0.0.1'}->is_bogon, 1, 'the private address was answered locally');
     for my $ip (PROBE, '8.8.8.8') {
         isa_ok($answers->{$ip}, 'VPNDetection::Result', $ip);

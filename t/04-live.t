@@ -49,7 +49,7 @@ subtest 'a batch mixes served and local answers' => sub {
         is($answers->{'45.83.91.1'}->is_vpn, 1, 'the served answer');
         return;
     }
-    # POST /batch needs a key, so without one every address sent to it is refused.
+    # POST /batch needs a key on a paid plan, so without one every address sent to it is refused.
     my $refused = $answers->{'45.83.91.1'};
     isa_ok($refused, 'VPNDetection::Error');
     is($refused->kind, 'unauthorized', 'a batch without a key is refused');

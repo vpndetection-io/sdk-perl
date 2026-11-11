@@ -12,16 +12,21 @@ our @FLAGS = qw(
     is_pubproxy
 );
 our @DETAILS = qw(vpn hosting relay tor cdn resproxy dcproxy mobproxy pubproxy);
-# Where the address is and the AS announcing it, on every keyed answer, each
-# with every member present: an empty string, or AS 0, where nothing is known.
+# Where the address is and the AS announcing it, on every answer, with or without
+# a key, each with every member present: an empty string, or AS 0, where nothing
+# is known.
 our @OBJECTS = qw(location asn);
 our @LOCATION = qw(
     continent continent_name country country_name timezone currency_code currency_name
     currency_symbol flag_emoji flag_unicode
 );
 our @ASN = qw(asn name domain type prefix);
+# On a Trial key's answers only, and so never on a bogon's: false while the
+# organization's 100 full answers for the UTC day last, true once the answer is
+# Unlimited's.
+our @MARKERS = qw(trial_expired);
 
-my %KNOWN = map { $_ => 1 } 'ip', 'is_bogon', @FLAGS, @DETAILS, @OBJECTS;
+my %KNOWN = map { $_ => 1 } 'ip', 'is_bogon', @FLAGS, @DETAILS, @OBJECTS, @MARKERS;
 
 # The one place a wire body becomes a result. Every field is copied on key
 # PRESENCE and never on truthiness: a plan that includes `is_hosting` and
@@ -31,7 +36,7 @@ my %KNOWN = map { $_ => 1 } 'ip', 'is_bogon', @FLAGS, @DETAILS, @OBJECTS;
 sub from_wire {
     my ($class, $body) = @_;
     my %answer = (ip => $body->{ip}, is_bogon => 0);
-    for my $flag (@FLAGS) {
+    for my $flag (@FLAGS, @MARKERS) {
         $answer{$flag} = $body->{$flag} ? 1 : 0 if exists $body->{$flag};
     }
     for my $detail (@DETAILS, @OBJECTS) {
@@ -53,7 +58,7 @@ sub has {
 # a key is entitled to without reading the plan table.
 sub fields {
     my ($self) = @_;
-    return grep { exists $self->{$_} } @FLAGS, @DETAILS, @OBJECTS;
+    return grep { exists $self->{$_} } @FLAGS, @DETAILS, @OBJECTS, @MARKERS;
 }
 
 # The response exactly as it came off the wire, with its original names and its
@@ -70,7 +75,7 @@ sub _new {
 
 # One reader per field rather than AUTOLOAD, so a typo is a compile-adjacent
 # "Can't locate object method" rather than a silent undef.
-for my $field ('ip', 'is_bogon', @FLAGS, @DETAILS, @OBJECTS) {
+for my $field ('ip', 'is_bogon', @FLAGS, @DETAILS, @OBJECTS, @MARKERS) {
     no strict 'refs';
     *{__PACKAGE__ . "::$field"} = sub { $_[0]->{$field} };
 }
@@ -128,8 +133,8 @@ than served.
 =head2 is_hosting, is_relay, is_tor, is_cdn, is_resproxy, is_dcproxy, is_mobproxy, is_pubproxy
 
 The tier-gated flags: C<1>, C<0>, or C<undef> when your plan omits the field.
-Without a key C<is_tor> and C<is_relay> come back beside C<is_vpn>; any key, a
-free one included, adds every other flag. C<is_pubproxy> is whether a
+On the Unlimited tier, with a key or without one, C<is_tor> and C<is_relay> come
+back beside C<is_vpn>; every paid plan answers every flag. C<is_pubproxy> is whether a
 public proxy, one anyone can connect through, listens on the address or sends
 its traffic out from it.
 
@@ -151,6 +156,12 @@ C<continent_name>, C<country>, C<country_name>, C<timezone>, C<currency_code>,
 C<currency_name>, C<currency_symbol>, C<flag_emoji> and C<flag_unicode>; C<asn>
 carries C<asn>, C<name>, C<domain>, C<type> and C<prefix>. Every key is present
 whenever the object is: an empty string, and C<asn> 0, where nothing is known.
+
+=head2 trial_expired
+
+On a Trial key's answers only: C<0> while the organization's 100 full answers
+for the UTC day last, C<1> once the answer is Unlimited's, and C<undef> on any
+other answer.
 
 =head2 has($field)
 

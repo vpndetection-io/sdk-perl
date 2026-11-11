@@ -5,7 +5,7 @@ use warnings;
 
 use Exporter 'import';
 
-our @EXPORT_OK = qw(@RUNGS unauth_rung free_rung max_rung key_for skip_for observable_rungs);
+our @EXPORT_OK = qw(@RUNGS unauth_rung trial_rung paid_rung max_rung key_for skip_for observable_rungs);
 
 # Which plan tiers this run can observe, and the secret each one needs.
 #
@@ -20,17 +20,19 @@ our @EXPORT_OK = qw(@RUNGS unauth_rung free_rung max_rung key_for skip_for obser
 # every comparison against it is vacuously true.
 
 # Ascending, one rung per plan tier. `widens` is what the rung promises against
-# whichever observable rung sits below it: a free key serves strictly more than
-# no key, and the first paid tier strictly more than a free key; every paid plan
-# answers the same fields, so a higher paid tier only keeps what the one under
-# it serves.
+# whichever observable rung sits below it: the first paid tier serves strictly
+# more than no key; every paid plan answers the same fields, so a higher paid
+# tier only keeps what the one under it serves. The trial key's answer is a paid
+# one for its organization's first 100 lookups of the UTC day and Unlimited's
+# after, so it promises nothing and is never the rung a later one is compared
+# against.
 #
 # Field COUNTS are deliberately absent. Pinning "starter answers seven fields"
 # turns a pricing change into a red SDK build; the relation between the tiers is
 # what the client actually has to keep.
 our @RUNGS = (
     { tier => 'unauth', secret => undef, widens => 0 },
-    { tier => 'free', secret => 'VPNDETECTION_STAGING_KEY_FREE', widens => 1 },
+    { tier => 'trial', secret => 'VPNDETECTION_STAGING_KEY_FREE', widens => 0 },
     { tier => 'starter', secret => 'VPNDETECTION_STAGING_KEY_STARTER', widens => 1 },
     { tier => 'scale', secret => 'VPNDETECTION_STAGING_KEY_SCALE', widens => 0 },
     { tier => 'max', secret => 'VPNDETECTION_STAGING_KEY_MAX', widens => 0 },
@@ -40,9 +42,13 @@ sub unauth_rung {
     return $RUNGS[0];
 }
 
-# The cheapest rung a batch can run on: POST /batch needs a key.
-sub free_rung {
+sub trial_rung {
     return $RUNGS[1];
+}
+
+# The cheapest rung a batch can run on: POST /batch needs a paid plan.
+sub paid_rung {
+    return $RUNGS[2];
 }
 
 sub max_rung {
