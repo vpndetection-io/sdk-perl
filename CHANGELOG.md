@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 3.3.2 are described by their release commits.
 
+## 3.12.2 - 2026-11-11
+
+### Fixes
+
+- Name the Unlimited tier and its terms, and re-pin the spec ([`bbc1056`](https://github.com/vpndetection-io/sdk-perl/commit/bbc1056ba07626b4dbc464747356d198eb4cfe7e))
+
 ## 3.12.1 - 2026-11-11
 
 ### Fixes
