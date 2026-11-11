@@ -2,6 +2,12 @@
 
 What each release changed for you, newest first. Each line is a commit's summary, linked to its full description and diff. Releases before 3.3.2 are described by their release commits.
 
+## 3.13.1 - 2026-11-11
+
+### Fixes
+
+- Say the free plan's daily trial and Unlimited, the free plan, and re-pin the spec ([`913a201`](https://github.com/vpndetection-io/sdk-perl/commit/913a2015f7f113217906aa8b0ef01b6e78589a80))
+
 ## 3.13.0 - 2026-11-11
 
 ### Features
