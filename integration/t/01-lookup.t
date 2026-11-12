@@ -159,7 +159,8 @@ subtest 'a batch without a key is refused once, and its bogon still answered' =>
     my @paths;
     my $client = client_for(unauth_rung(), sub { push @paths, shift->{path} });
 
-    my $answers = $client->lookup_batch([PROBE, '10.0.0.1']);
+    # Two addresses on the wire: a keyless batch of one is answered as its lookup.
+    my $answers = $client->lookup_batch([PROBE, '8.8.8.8', '10.0.0.1']);
 
     is($answers->{'10.0.0.1'}->is_bogon, 1, 'the private address was answered locally');
     my $refused = $answers->{+PROBE};
