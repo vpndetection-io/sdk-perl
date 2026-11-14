@@ -29,10 +29,10 @@ use constant PROBE => '45.83.91.1';
 # One entry per dataset the API answers about. `required` is what a POPULATED
 # detail object carries on every tier; `optional` is the max-only remainder,
 # which is absent rather than empty on a lower plan.
-my @CLASS_KEYS = qw(provider confidence last_seen);
-my @PROXY_KEYS = qw(provider first_seen last_seen hits hits_days_pct providers_num);
+my @CLASS_KEYS = qw(provider provider_name confidence last_seen);
+my @PROXY_KEYS = qw(provider provider_name first_seen last_seen hits hits_days_pct providers_num);
 our %MEMBERS = (
-    vpn => { required => ['provider', 'last_seen'], optional => ['confidence', 'method'] },
+    vpn => { required => ['provider', 'provider_name', 'last_seen'], optional => ['confidence', 'method'] },
     hosting => { required => \@CLASS_KEYS, optional => [] },
     relay => { required => \@CLASS_KEYS, optional => [] },
     tor => { required => \@CLASS_KEYS, optional => [] },
