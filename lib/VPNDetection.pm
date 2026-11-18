@@ -63,7 +63,7 @@ my $LOCATION = [fields => [map { [$_ => ['string'], 1] } @VPNDetection::Result::
 my $ASN = [fields => [[asn => ['integer'], 1], map { [$_ => ['string'], 1] } qw(name domain type prefix)]];
 our $LOOKUP = [fields => [
     [ip => ['string'], 1], [is_vpn => ['boolean'], 1], [is_bogon => ['boolean']],
-    (map { [$_ => ['boolean']] } qw(is_hosting is_relay is_tor is_cdn is_resproxy is_dcproxy is_mobproxy is_pubproxy trial_expired)),
+    (map { [$_ => ['boolean']] } qw(is_hosting is_relay is_tor is_cdn is_resproxy is_dcproxy is_mobproxy is_pubproxy trial_expired cap_reached)),
     [vpn => $VPN_DETAIL],
     (map { [$_ => $CLASS_DETAIL] } qw(hosting relay tor cdn)),
     (map { [$_ => $PROXY_DETAIL] } qw(resproxy dcproxy mobproxy)),
