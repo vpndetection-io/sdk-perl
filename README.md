@@ -252,7 +252,7 @@ die "no API key came back: none was picked, or it can't be shown again\n"
 my $keyed = VPNDetection->new(api_key => $token->{apikey});
 ```
 
-A denied sign-in dies with `VPNDetection::OauthAccessDeniedError` and a code that ran out with `VPNDetection::OauthExpiredTokenError`. Client IDs are issued on request from support@vpndetection.io, and `$client->oauth->revoke('your-client-id', $token->{refresh_token})` signs the machine out again.
+A denied sign-in dies with `VPNDetection::OauthAccessDeniedError` and a code that ran out with `VPNDetection::OauthExpiredTokenError`. `$client->oauth->revoke('your-client-id', $token->{refresh_token})` signs the machine out again. Only a client we registered, such as our CLI, can use the device flow: an app of your own signs people in with the authorization code flow below.
 
 ### Sign in with OAuth (authorization code)
 
