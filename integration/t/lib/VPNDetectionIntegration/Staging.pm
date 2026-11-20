@@ -13,7 +13,7 @@ use VPNDetection;
 use VPNDetectionIntegration::Tiers qw(key_for observable_rungs);
 
 our @EXPORT_OK = qw(
-    %MEMBERS PROBE STAGING STAGING_HOST
+    %MEMBERS @WEB_KEYS $WEB_SINCE PROBE STAGING STAGING_HOST installed_since
     answer_for assert_served_by_tier assert_shape client_for ladder_skip
 );
 
@@ -40,7 +40,48 @@ our %MEMBERS = (
     resproxy => { required => \@PROXY_KEYS, optional => [] },
     dcproxy => { required => \@PROXY_KEYS, optional => [] },
     mobproxy => { required => \@PROXY_KEYS, optional => [] },
+    # The network and service details. `since` is the first release whose reader
+    # knows the member: the wire is checked whatever is installed, the reader only
+    # from that release on.
+    carrier => { required => [qw(name mcc mnc country confidence)], optional => [], since => '3.17.0' },
+    satellite => {
+        required => [qw(provider provider_name orbit segment country asn confidence)], optional => [],
+        since => '3.17.0',
+    },
+    ssh => {
+        required => [qw(port banner host_key_fp session_ok first_seen last_seen)], optional => [],
+        since => '3.17.0',
+    },
+    smtp => { required => [qw(port banner session_ok first_seen last_seen)], optional => [], since => '3.17.0' },
+    dns_resolver => {
+        required => [qw(port recursion_available rcode answer_correct first_seen last_seen)], optional => [],
+        since => '3.17.0',
+    },
+    bittorrent => {
+        required => [qw(
+            verified id_matches_ip first_seen last_seen last_reachable days_seen num_ports peak_num_ports
+            indexer clients
+        )],
+        optional => [],
+        since => '3.17.0',
+    },
 );
+
+# A row of `web`, a list with one per port that answered, `[]` under a false
+# `is_web`.
+our @WEB_KEYS = qw(
+    port tls_ok session_ok status_code server location title cert_subject_cn cert_subject_o
+    cert_issuer_dn cert_browser_trusted tls_version first_seen last_seen
+);
+our $WEB_SINCE = '3.17.0';
+
+# Whether the installed distribution is $release or later, read off its version
+# rather than probed, so a member a release drops fails instead of skipping.
+sub installed_since {
+    my ($release) = @_;
+    return 1 unless defined $release;
+    return eval { VPNDetection->VERSION($release); 1 } ? 1 : 0;
+}
 
 # This suite exists to exercise the distribution as PUBLISHED, and the way it
 # fails to is silent: with the working tree in @INC every test passes, against
@@ -153,15 +194,33 @@ sub assert_shape {
 
     for my $name (sort keys %MEMBERS) {
         my $flag = "is_$name";
-        if (exists $raw->{$flag}) {
+        my $read = installed_since($MEMBERS{$name}{since});
+        if (exists $raw->{$flag} && $read) {
             is($r->has($flag), 1, "$tier: $flag is served, so the plan carries it");
             ok(defined $r->$flag, "$tier: and it reads as 0 or 1, never undef");
         }
         next unless exists $raw->{$name};
         # A detail object without its flag would leave a caller reading the object
         # to find out whether the address is flagged at all.
-        is($r->has($flag), 1, "$tier: $name is served with $flag");
+        ok(exists $raw->{$flag}, "$tier: $name is served with $flag");
         assert_detail($r, $name, $tier);
+    }
+    assert_web($raw, $tier) if exists $raw->{web};
+}
+
+sub assert_web {
+    my ($raw, $tier) = @_;
+    my $web = $raw->{web};
+    is(ref $web, 'ARRAY', "$tier: web is a list when present");
+    return unless ref $web eq 'ARRAY';
+    ok(exists $raw->{is_web}, "$tier: web is served with is_web");
+    is(@$web ? 1 : 0, $raw->{is_web} ? 1 : 0, "$tier: web holds rows exactly when is_web is true");
+    my %documented = map { $_ => 1 } @WEB_KEYS;
+    for my $row (@$web) {
+        is(ref $row, 'HASH', "$tier: a row of web is an object");
+        next unless ref $row eq 'HASH';
+        ok(exists $row->{$_}, "$tier: a row of web carries $_") for @WEB_KEYS;
+        ok($documented{$_}, "$tier: web.$_ is a documented key of a web row") for sort keys %$row;
     }
 }
 
@@ -173,7 +232,9 @@ sub assert_detail {
 
     my $flag = "is_$name";
     if (!keys %$detail) {
-        is($r->$flag, 0, "$tier: $name is empty, so $flag is false");
+        is($r->raw->{$flag} ? 1 : 0, 0, "$tier: $name is empty, so $flag is false");
+        is($r->$flag, 0, "$tier: and the client reads it as 0")
+            if installed_since($MEMBERS{$name}{since});
         return;
     }
     my $spec = $MEMBERS{$name};

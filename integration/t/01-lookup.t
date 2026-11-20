@@ -7,7 +7,7 @@ use Mojo::UserAgent;
 use Test::More;
 use VPNDetection;
 use VPNDetectionIntegration::Staging qw(
-    %MEMBERS PROBE STAGING answer_for assert_served_by_tier client_for ladder_skip
+    %MEMBERS $WEB_SINCE PROBE STAGING answer_for assert_served_by_tier client_for installed_since ladder_skip
 );
 use VPNDetectionIntegration::Tiers qw(@RUNGS observable_rungs paid_rung skip_for trial_rung unauth_rung);
 
@@ -72,10 +72,10 @@ subtest "a free-plan key's answer is a paid one or Unlimited's, and says which" 
     my $raw = answer_for(trial_rung())->{result}->raw;
 
     ok(exists $raw->{trial_expired}, 'a free-plan key answers trial_expired');
-    # The organization's first 100 lookups of the UTC day are answered in full,
-    # and the rest as Unlimited's: which half a run sees depends on the day.
+    # Answered in full while the organization's trial lasts, and as Unlimited's
+    # after: which half a run sees depends on when it runs.
     is(exists $raw->{is_hosting} ? 1 : 0, $raw->{trial_expired} ? 0 : 1,
-        'is_hosting is served exactly while the day lasts');
+        'is_hosting is served exactly while the trial lasts');
 };
 
 subtest "a free-plan key's batch of two is refused as a bad request, once" => sub {
@@ -149,9 +149,14 @@ subtest 'a bogon is answered without touching the network' => sub {
     is(VPNDetection::is_bogon('10.0.0.1'), 1, 'the exportable form agrees with the client');
     # Computed rather than served, so it carries every field whatever the plan.
     for my $name (sort keys %MEMBERS) {
+        next unless installed_since($MEMBERS{$name}{since});
         my $flag = "is_$name";
         is($result->$flag, 0, "$flag is present and false on a bogon");
         is_deeply($result->$name, {}, "$name is present and empty on a bogon");
+    }
+    if (installed_since($WEB_SINCE)) {
+        is($result->is_web, 0, 'is_web is present and false on a bogon');
+        is_deeply($result->web, [], 'web is present and empty on a bogon');
     }
 };
 
