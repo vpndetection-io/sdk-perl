@@ -34,8 +34,8 @@ our @ASN = qw(asn name domain type prefix country rpki_status);
 our @COMPANY = qw(name domain type country);
 our @ABUSE = qw(email name phone address country network validated unvalidated_since);
 # On answers to a key on the free plan only, and so never on a bogon's: false
-# while its organization's daily trial lasts (every field for the first 100
-# lookups each UTC day), true once the answer has Unlimited's. cap_reached is the
+# while its organization's trial of every field lasts, true once the answer has
+# Unlimited's. cap_reached is the
 # same on a paid plan's answers: false while the answer has every field, true
 # once its organization's overage cap is reached.
 our @MARKERS = qw(trial_expired cap_reached);
@@ -223,9 +223,9 @@ where no record covers the address.
 
 =head2 trial_expired
 
-On answers to a key on the free plan only: C<0> while its organization's daily
-trial lasts (every field for the first 100 lookups each UTC day), C<1> once the
-answer has Unlimited's, and C<undef> on any other answer.
+On answers to a key on the free plan only: C<0> while its organization's trial
+of every field lasts, C<1> once the answer has Unlimited's, and C<undef> on any
+other answer.
 
 =head2 cap_reached
 
