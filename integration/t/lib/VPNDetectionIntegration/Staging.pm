@@ -40,6 +40,10 @@ our %MEMBERS = (
     resproxy => { required => \@PROXY_KEYS, optional => [] },
     dcproxy => { required => \@PROXY_KEYS, optional => [] },
     mobproxy => { required => \@PROXY_KEYS, optional => [] },
+    pubproxy => {
+        required => [qw(entry exit protocols num_ports num_proxies last_seen last_usable)], optional => [],
+        since => '3.7.0',
+    },
     # The network and service details. `since` is the first release whose reader
     # knows the member: the wire is checked whatever is installed, the reader only
     # from that release on.
