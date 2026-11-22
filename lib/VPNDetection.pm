@@ -99,8 +99,7 @@ my $LOCATION = [fields => [
     (map { [$_ => ['number']] } qw(latitude longitude)), [accuracy_radius => ['integer']],
 ]];
 my $ASN = [fields => [
-    [asn => ['integer'], 1], (map { [$_ => ['string'], 1] } qw(name domain type prefix)),
-    (map { [$_ => ['string']] } qw(country rpki_status)),
+    [asn => ['integer'], 1], (map { [$_ => ['string'], 1] } qw(name domain type prefix country rpki_status)),
 ]];
 my $COMPANY = [fields => [(map { [$_ => ['string'], 1] } qw(name domain)), (map { [$_ => ['string']] } qw(type country))]];
 my $ABUSE = [fields => [
