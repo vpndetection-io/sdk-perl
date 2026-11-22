@@ -44,6 +44,13 @@ our %MEMBERS = (
         required => [qw(entry exit protocols num_ports num_proxies last_seen last_usable)], optional => [],
         since => '3.7.0',
     },
+    bot => {
+        required => [qw(
+            provider provider_name agents categories verified identity verified_by confidence first_seen last_seen
+        )],
+        optional => [],
+        since => '3.18.0',
+    },
     # The network and service details. `since` is the first release whose reader
     # knows the member: the wire is checked whatever is installed, the reader only
     # from that release on.
