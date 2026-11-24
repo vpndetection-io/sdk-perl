@@ -54,7 +54,8 @@ my $PROXY_DETAIL = [fields => [
 ]];
 my $BOT_DETAIL = [fields => [
     (map { [$_ => ['string']] } qw(provider provider_name)), (map { [$_ => [list => ['string']]] } qw(agents categories)),
-    [verified => ['boolean']], (map { [$_ => ['string']] } qw(identity verified_by confidence first_seen last_seen)),
+    [verified => ['boolean']], (map { [$_ => ['string']] } qw(identity verified_by confidence)),
+    (map { [$_ => ['date']] } qw(first_seen last_seen)),
 ]];
 my $PUBPROXY_DETAIL = [fields => [
     [entry => ['boolean']], [exit => ['boolean']], [protocols => [list => ['string']]],
@@ -67,28 +68,28 @@ my $SATELLITE_DETAIL = [fields => [
     [asn => ['integer']],
 ]];
 my $SSH_DETAIL = [fields => [
-    [port => ['integer']], (map { [$_ => ['string']] } qw(banner host_key_fp first_seen last_seen)),
+    [port => ['integer']], (map { [$_ => ['string']] } qw(banner host_key_fp)), (map { [$_ => ['date']] } qw(first_seen last_seen)),
     [session_ok => ['boolean']],
 ]];
 my $SMTP_DETAIL = [fields => [
-    [port => ['integer']], (map { [$_ => ['string']] } qw(banner first_seen last_seen)),
+    [port => ['integer']], [banner => ['string']], (map { [$_ => ['date']] } qw(first_seen last_seen)),
     [session_ok => ['boolean']],
 ]];
 my $WEB_ROW = [fields => [
     (map { [$_ => ['integer'], 1] } qw(port status_code)),
     (map { [$_ => ['boolean'], 1] } qw(tls_ok session_ok cert_browser_trusted)),
     (map { [$_ => ['string'], 1] } qw(
-        server location title cert_subject_cn cert_subject_o cert_issuer_dn tls_version first_seen
-        last_seen
+        server location title cert_subject_cn cert_subject_o cert_issuer_dn tls_version
     )),
+    (map { [$_ => ['date'], 1] } qw(first_seen last_seen)),
 ]];
 my $DNS_RESOLVER_DETAIL = [fields => [
     (map { [$_ => ['integer']] } qw(port rcode)), (map { [$_ => ['boolean']] } qw(recursion_available answer_correct)),
-    (map { [$_ => ['string']] } qw(first_seen last_seen)),
+    (map { [$_ => ['date']] } qw(first_seen last_seen)),
 ]];
 my $BITTORRENT_DETAIL = [fields => [
     (map { [$_ => ['boolean']] } qw(verified id_matches_ip indexer)),
-    (map { [$_ => ['string']] } qw(first_seen last_seen last_reachable)),
+    (map { [$_ => ['date']] } qw(first_seen last_seen)), [last_reachable => ['string']],
     (map { [$_ => ['integer']] } qw(days_seen num_ports peak_num_ports)),
     [clients => [list => ['string']]],
 ]];
