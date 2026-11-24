@@ -139,6 +139,21 @@ subtest 'a field a higher tier serves is absent on a lower one, never false' => 
     note("$compared absent field(s) checked across the ladder");
 };
 
+subtest "Googlebot's own address and user agent is a verified bot" => sub {
+    plan skip_all => skip_for(paid_rung()) if skip_for(paid_rung());
+    plan skip_all => 'the installed release sends no user_agent' unless installed_since('3.19.0');
+    my $agent = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+
+    my $result = eval { client_for(paid_rung())->lookup('66.249.66.1', user_agent => $agent) };
+    BAIL_OUT("looking 66.249.66.1 up with Googlebot's user agent: $@") unless $result;
+
+    is($result->is_bot, 1, 'the address is a bot');
+    is($result->has('user_agent'), 1, 'the answer carries user_agent');
+    my $verdict = $result->user_agent // {};
+    ok(exists $verdict->{$_}, "user_agent carries $_") for qw(agent kind verdict);
+    is($verdict->{verdict}, 'verified', 'and its operator vouches for the address');
+};
+
 subtest 'a bogon is answered without touching the network' => sub {
     my $offline = VPNDetection->new(base_url => STAGING, ua => refusing_ua());
 
