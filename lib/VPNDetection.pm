@@ -900,7 +900,7 @@ before writing an C<if>.
 Your API key. Without one a lookup is on Unlimited, the free plan: C<ip>,
 C<is_vpn>, the Tor and relay members, C<location> and C<asn>, with no daily or
 monthly cap.
-Every paid plan answers every field, and a batch needs one. An empty or blank key is the same as none, and
+The Data plan answers every field, and a batch needs a paid plan. An empty or blank key is the same as none, and
 sends no C<Authorization> header. The key is trimmed, so one read from
 a file with its newline works; a key still holding a control character, or a
 character past U+00FF, croaks here.
