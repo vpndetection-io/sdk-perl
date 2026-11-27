@@ -27,6 +27,14 @@ subtest 'a lookup without a key answers ip and is_vpn at the least' => sub {
     is($fixture->{result}->raw->{ip}, PROBE, 'the wire answered about the address asked for');
     ok(exists $fixture->{result}->raw->{is_vpn}, 'and carries is_vpn');
     assert_served_by_tier($fixture);
+    # A paid plan's members, which Unlimited's answer may carry or not: served, each
+    # reads as served, and absent it reads as undef and never as a false.
+    my $result = $fixture->{result};
+    like($result->is_bot // 'absent', qr/\A(?:[01]|absent)\z/, 'is_bot reads 0, 1 or absent');
+    my $asn = $result->asn;
+    is(ref $asn, 'HASH', 'asn is an object');
+    ok(!exists $asn->{type} || (defined $asn->{type} && !ref $asn->{type}),
+        "the AS's type is a string or absent");
     diag('testing against ' . STAGING);
 };
 
