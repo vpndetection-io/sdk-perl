@@ -69,9 +69,10 @@ sub expiry {
     return $node ? $node->[EXPIRES] : undef;
 }
 
-# A reduced answer, a spent trial's or a reached cap's, ends with a renewed trial
-# or a raised cap, so it stays a minute at most rather than the TTL. It is still
-# cached, or a busy process would send every repeat of an address to the API.
+# A reduced answer, a spent trial's or a reached cap's, ends when the
+# organization's plan changes or its cap is raised, so it stays a minute at most
+# rather than the TTL. It is still cached, or a busy process would send every
+# repeat of an address to the API.
 sub _life_of {
     my ($self, $value) = @_;
     my $reduced = Scalar::Util::blessed($value) && $value->can('trial_expired')

@@ -109,7 +109,7 @@ subtest "a free-plan key's batch of one is answered" => sub {
     my $answer = client_for(trial_rung())->lookup_batch([PROBE])->{+PROBE};
 
     isa_ok($answer, 'VPNDetection::Result', PROBE);
-    ok(exists $answer->raw->{trial_expired}, 'and says whether the trial day is spent');
+    ok(exists $answer->raw->{trial_expired}, 'and says whether the trial is spent');
 };
 
 subtest 'a field a higher tier serves is absent on a lower one, never false' => sub {

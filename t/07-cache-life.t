@@ -9,8 +9,9 @@ use Time::HiRes ();
 use VPNDetection;
 use VPNDetectionTest::Origin;
 
-# A spent trial's or a reached cap's answer ends with a renewed trial or a raised
-# cap, so it is cached for a minute at most rather than for the client's TTL.
+# A spent trial's or a reached cap's answer ends when the organization's plan
+# changes or its cap is raised, so it is cached for a minute at most rather than
+# for the client's TTL.
 
 my %FLAGS = (
     '45.83.91.1' => {},
